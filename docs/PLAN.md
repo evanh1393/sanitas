@@ -2,6 +2,8 @@
 
 Four weeks, about 2 hours a day. Each week ends with a demo.
 
+CI/CD with GitHub Actions is the main thing to learn, so it grows every week instead of arriving at the end. Every change goes through a PR, and each week adds one more thing the pipeline does. By week 4, nothing reaches AWS except through the pipeline.
+
 ## Before starting
 
 - [x] Check which Claude models Bedrock offers in commercial AWS and GovCloud; pin one. (Chosen: Claude Haiku 4.5 for dev, inference profile `us.anthropic.claude-haiku-4-5-20251001-v1:0`, ACTIVE in us-east-1 and us-west-2. The `us.` profile keeps requests in US regions; `global.` can route anywhere.)
@@ -17,9 +19,13 @@ Four weeks, about 2 hours a day. Each week ends with a demo.
 - [ ] `ModelProvider` interface: `BedrockConverseProvider` (real) and `FakeProvider` (tests). Model ID from config.
 - [ ] Local redaction CLI using Presidio.
 - [ ] Dockerfile for the redaction code; tests run inside the container.
-- [ ] GitHub Actions: lint + unit tests (fake provider) on every PR.
 - [ ] Scoring harness against ai4privacy (recall, precision).
 - [ ] Decision record: why Python, why Presidio first.
+- CI/CD:
+  - [ ] First workflow: lint + unit tests (fake provider) on every PR.
+  - [ ] Build the Docker image in CI and run the tests inside it.
+  - [ ] Terraform checks in CI: `fmt -check`, `validate`, `tflint`.
+  - [ ] Branch protection on `main`: PRs only, required checks must pass.
 - **Demo:** "Redaction catches X% of personal data across N labeled records," plus the command that reproduces it.
 
 ## Week 2: the pipeline in AWS
@@ -27,6 +33,12 @@ Four weeks, about 2 hours a day. Each week ends with a demo.
 - [ ] Terraform: raw bucket → redaction Lambda → clean bucket, plus quarantine bucket. KMS, least-privilege IAM.
 - [ ] Lambdas as container images in ECR (lifecycle policy to keep storage near $0).
 - [ ] Add Comprehend and LLM-as-redactor (via the provider) to the harness. Write the comparison.
+- CI/CD:
+  - [ ] GitHub OIDC provider and deploy role in Terraform (no stored AWS keys).
+  - [ ] Build and push images to ECR from Actions via OIDC.
+  - [ ] `terraform plan` on every PR, posted as a PR comment.
+  - [ ] `terraform apply` from Actions on merge, behind a GitHub environment that needs Evan's approval.
+  - [ ] Security scans in CI: `checkov` (or `trivy config`) on Terraform, `trivy` on images.
 - **Demo:** upload a file; watch the redacted copy, quarantined items, and audit record appear.
 
 ## Week 3: retrieval and the agent
@@ -35,11 +47,20 @@ Four weeks, about 2 hours a day. Each week ends with a demo.
 - [ ] The model on Bedrock answers with citations. Log caller, documents used, prompt hash, model, tokens.
 - [ ] Attack tests: prompt injection, PII extraction.
 - [ ] Optional: classification step (Haiku default, Jev as alternative) with a comparison.
-- **Demo:** cited answer, audit trail, attacks failing.
+- [ ] Optional: try LangChain (or similar) for the retrieval step behind the same provider interface; note what it adds or costs.
+- CI/CD:
+  - [ ] Attack tests as their own required CI job.
+  - [ ] Integration tests against the container image with the fake provider.
+  - [ ] Redaction eval gate: CI fails if recall or precision drops below the thresholds Evan sets.
+- **Demo:** cited answer, audit trail, attacks failing, and a PR blocked by a failing check.
 
 ## Week 4: polish and the story
 
-- [ ] GitHub Actions via OIDC: build and push images, `terraform plan` on PRs, eval gates (real model) that block merges.
+- CI/CD:
+  - [ ] Eval job with the real model (the only CI job that calls Bedrock), gating merges.
+  - [ ] Scheduled drift check: nightly `terraform plan` that alerts if AWS no longer matches the code.
+  - [ ] Reusable workflows or composite actions to remove duplication.
+  - [ ] Releases: tag, versioned image, changelog.
 - [ ] GovCloud variables and README section, including swapping the model ID (Haiku 4.5 is not in GovCloud).
 - [ ] README: architecture diagram, eval numbers, cost per 1,000 docs, destroy walkthrough.
 - [ ] Load test; write `SCALE.md`.

@@ -13,7 +13,9 @@ An open-source, one-command AWS deployment that safely feeds sensitive documents
 5. A model on Bedrock (Claude Haiku 4.5 by default) answers questions with citations.
 6. Every model call is written to an audit log.
 
-All infrastructure is Terraform. The model is a swappable part: the showcase is the CI/CD, testing, and infrastructure around it. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
+All infrastructure is Terraform. The model is a swappable part: the showcase is the CI/CD, testing, and infrastructure around it.
+
+**The main thing to learn is CI/CD with GitHub Actions.** When choosing how to do something, prefer the option that teaches more about pipelines: PR checks, OIDC deploys, gated applies, scans, eval gates. AI frameworks like LangChain are welcome but secondary. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
 
 ## Who does what
 
@@ -28,7 +30,7 @@ Evan also owns the things an agent can't decide:
 - **What "good" means.** Metrics and thresholds, including the confidence level that routes to a human. Recall on personal data matters more than precision: a missed SSN is worse than an over-cleaned sentence.
 - **The threat model**, written in plain language before the attack tests.
 - **Decision records** in `docs/decisions/`, in Evan's own words. Draft options and tradeoffs if asked, but do not write the decision itself.
-- **Deploys.** Evan runs `terraform apply` and fixes deploy failures himself. Never run `apply` or `destroy`.
+- **Deploys.** Evan runs `terraform apply`, or approves it in the gated GitHub Actions environment, and fixes deploy failures himself. The agent never runs `apply` or `destroy`.
 
 Rule: nothing gets merged that Evan can't explain in an interview. Explain the why behind each step, briefly.
 
