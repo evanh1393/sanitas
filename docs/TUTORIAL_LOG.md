@@ -76,7 +76,7 @@ Started 2026-09-29.
 
 **Pieces:** GitHub Actions (primary), Terraform.
 
-**Where we are (2026-09-29):** steps 1–4 done (workflow written). Next: step 5, branch + push + PR, watch it run.
+**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. Next: break fmt on purpose to see a red check, fix it, then merge PR #1.
 
 ### Steps
 
@@ -84,7 +84,7 @@ Started 2026-09-29.
 - [x] 2. Job: checkout + install Terraform
 - [x] 3. `fmt -check`
 - [x] 4. `init -backend=false` + `validate`
-- [ ] 5. Push a branch, open a PR, watch it run
+- [x] 5. Push a branch, open a PR, watch it run
 
 ### Decisions and why
 
@@ -97,6 +97,15 @@ Started 2026-09-29.
 - Actions pinned to major tags (`@v5`, `@v3`) for now; pin to commit SHAs in the week 2 security step.
 
 ### Commands run
+
+```bash
+git switch -c ci/terraform-checks
+git add .github/workflows/terraform.yml docs/TUTORIAL_LOG.md
+git commit -m "Add Terraform fmt and validate checks on PRs"
+git push -u origin ci/terraform-checks
+gh pr create --fill                 # PR #1
+gh pr checks --watch                # checks: SUCCESS
+```
 
 ### Gotchas / things I got wrong
 
