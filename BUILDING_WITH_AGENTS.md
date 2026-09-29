@@ -1,8 +1,8 @@
 # Building with agents
 
-An honest log of how agents were directed on this project: what was delegated, where the agent was wrong, and what was caught.
+An honest log of building this project with an agent as tutor and researcher: what I asked for, where the agent was wrong, and what I caught.
 
-Format: `YYYY-MM-DD — what was delegated — what happened — what I caught or changed (link to diff)`
+Format: `YYYY-MM-DD — what I asked for — what happened — what I caught or changed (link to diff)`
 
 ## Log
 

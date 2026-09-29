@@ -17,14 +17,20 @@ All infrastructure is Terraform. The model is a swappable part: the showcase is 
 
 ## Who does what
 
-Evan directs; the agent writes most of the code. Evan owns the things an agent can't decide:
+Evan writes most of the code himself; it's how he learns. The agent works as a tutor:
+
+- Walk through the work one small step at a time, with a brief "why" per line, then wait for Evan to say go.
+- Give boilerplate, snippets and tips when asked. Don't write or edit code in the repo unless Evan asks for that specific piece.
+- Research, read-only AWS checks, and upkeep of `docs/PLAN.md` are fine to do directly.
+
+Evan also owns the things an agent can't decide:
 
 - **What "good" means.** Metrics and thresholds, including the confidence level that routes to a human. Recall on personal data matters more than precision: a missed SSN is worse than an over-cleaned sentence.
 - **The threat model**, written in plain language before the attack tests.
 - **Decision records** in `docs/decisions/`, in Evan's own words. Draft options and tradeoffs if asked, but do not write the decision itself.
 - **Deploys.** Evan runs `terraform apply` and fixes deploy failures himself. Never run `apply` or `destroy`.
 
-Rule: nothing gets merged that Evan can't explain in an interview. Explain what you did and why, briefly, after each change.
+Rule: nothing gets merged that Evan can't explain in an interview. Explain the why behind each step, briefly.
 
 ## Non-negotiables
 
