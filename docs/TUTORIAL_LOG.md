@@ -76,7 +76,7 @@ Started 2026-09-29.
 
 **Pieces:** GitHub Actions (primary), Terraform.
 
-**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. PR #1 green → red (deliberate misformat) → green, squash-merged as `2c6af35`. Step 8 (tflint) written by the agent at Evan's request on branch `ci/tflint`; next: push, PR, merge, tick PLAN item.
+**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. PR #1 green → red (deliberate misformat) → green, squash-merged as `2c6af35`. tflint merged as PR #2 (`44f3dc1`), green in CI. Lesson 2 complete. Next: lesson 3, branch protection on `main` (make `checks` required; deal with the `paths` filter vs required-check problem).
 
 ### Steps
 
@@ -86,7 +86,7 @@ Started 2026-09-29.
 - [x] 4. `init -backend=false` + `validate`
 - [x] 5. Push a branch, open a PR, watch it run
 - [x] 6. Break fmt on purpose, see red, fix, squash-merge
-- [ ] 8. tflint (agent-written; Evan said he's got Actions down)
+- [x] 8. tflint (agent-written; Evan said he's got Actions down)
 
 ### Decisions and why
 
