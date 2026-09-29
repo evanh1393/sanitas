@@ -136,14 +136,14 @@ Started 2026-09-29.
 
 **Pieces:** GitHub rulesets (the gate), GitHub Actions (the checks).
 
-**Where we are (2026-09-29):** steps 1–3 done. PR #3 (`ci/required-checks`, paths filter removed) green, left open. Ruleset `main` (id 24160450) active, verified via API. Next: step 4, test the gate (direct push rejected, then merge PR #3 through it).
+**Where we are (2026-09-29):** steps 1–4 done. Direct push to `main` rejected (GH013); PR #3 was `BLOCKED` while `checks` ran, then squash-merged through the gate as `ed34b11`. Lesson 3 complete. Next: Week 1 Python work (README skeleton, data + `DATA.md`, or the `ModelProvider` interface); pick one from `docs/PLAN.md`.
 
 ### Steps
 
 - [x] 1. Make branch protection available (repo made public)
 - [x] 2. Make `checks` run on every PR (paths filter trap; agent made the edit)
 - [x] 3. Ruleset on `main`: require PR + `checks`
-- [ ] 4. Test it: direct push rejected, red PR blocked
+- [x] 4. Test it: direct push rejected, PR blocked until `checks` green
 
 ### Decisions and why
 
@@ -152,6 +152,36 @@ Started 2026-09-29.
 - Ruleset (Settings → Rules → Rulesets → New branch ruleset), not classic branch protection: rulesets are the newer replacement. Name `main`, Active, empty bypass list (even the admin can't skip it), target `~DEFAULT_BRANCH`. Rules: restrict deletions, block force pushes, require PR (0 approvals: solo dev can't approve own PR), require status check `checks` from GitHub Actions (integration 15368). "Require branches up to date" left off (forces rebase before every merge; not worth it solo).
 - Hole noted: a PR can edit the workflow and keep a job named `checks` that does nothing. Solo, the fix is that only Evan can merge and he reads the diff. With collaborators: CODEOWNERS on `.github/` + required review. Orgs can use required workflows from a locked repo.
 - Later option: manage the ruleset in Terraform (`github_repository_ruleset`) instead of UI clicks.
+
+### Commands run
+
+```bash
+gh api repos/evanh1393/sanitas/rulesets          # 403 on private free repo: "Upgrade to GitHub Pro or make this repository public"
+gh repo edit --visibility public --accept-visibility-change-consequences
+git switch -c ci/required-checks                 # drop paths filter
+git add .github/workflows/terraform.yml docs/TUTORIAL_LOG.md
+git commit -m "Run Terraform checks on every PR" && git push -u origin ci/required-checks
+gh pr create --fill && gh pr checks --watch      # PR #3 green
+# UI: Settings -> Rules -> Rulesets -> New ruleset -> New branch ruleset
+gh api repos/evanh1393/sanitas/rulesets/24160450 # verify rules
+git switch main && git commit --allow-empty -m "Test: direct push should be rejected"
+git push origin main                             # GH013: must be a PR; "checks" expected
+git reset --hard origin/main                     # drop the probe commit
+gh pr checks 3 --watch && gh pr merge 3 --squash --delete-branch && git pull
+```
+
+### Gotchas / things I got wrong
+
+- `git switch main` refused: uncommitted edits to `TUTORIAL_LOG.md` would be overwritten because the branch had already changed that file. Commit (or stash) first.
+- "New ruleset" is a dropdown: branch ruleset (protect `main`) vs tag ruleset (protect release tags, Week 4).
+- After the ruleset, even doc updates like this one go through a PR.
+
+### Interview talking points
+
+- The gate is only real once tested: direct push rejected with GH013, PR shown `BLOCKED` until the required check finished.
+- Required checks + path filters: a skipped workflow never reports, so the PR hangs. Fix by always running, or by a single always-on gate job.
+- Required check pinned to the GitHub Actions app, so a status posted by another tool with the same name doesn't count.
+- CI config is code: whoever can change and merge the workflow controls the gate. Mitigate with review (CODEOWNERS), SHA-pinned actions, and org-level required workflows.
 
 ### Q&A from this session (Terraform state)
 
