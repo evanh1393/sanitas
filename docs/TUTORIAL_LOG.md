@@ -427,13 +427,14 @@ Started 2026-09-29.
 
 **Pieces:** Docker (harness runs in the `test` image), GitHub Actions (later: eval gate job). Python written by the agent at Evan's request: the code isn't what this project demonstrates.
 
-**Where we are (2026-09-29):** step 1 done on `lesson8/scoring` (uncommitted): `detect()` in `src/sanitas/__init__.py`, `eval/score.py`. Next: step 2, run it locally, then inside the `test` image.
+**Where we are (2026-09-29):** steps 1–2 done on `lesson8/scoring`, pushed (`4265af2`). Baseline: recall 69.1%, precision 90.1%, identical on laptop and in the `test` image (~4 s for 200 records). Next: step 3, CI eval gate (Evan picks the recall/precision floors), then PR and merge.
 
 ### Steps
 
 - [x] 1. `detect()` + `eval/score.py` (agent-written)
-- [ ] 2. Run locally and in the `test` image; record baseline
-- [ ] 3. Commit, PR, merge
+- [x] 2. Run locally and in the `test` image; record baseline
+- [ ] 3. CI eval gate: fail the `test` job below the floors
+- [ ] 4. Red/green, PR, merge
 
 ### Decisions and why
 
@@ -447,9 +448,14 @@ Started 2026-09-29.
 
 ```bash
 git switch -c lesson8/scoring
-uv run python eval/score.py
+uv run python eval/score.py                              # recall 69.1%, precision 90.1%
+docker build --target test -t sanitas:test .
+docker run --rm sanitas:test python eval/score.py        # same numbers in the image
 ```
 
 ### Gotchas / things I got wrong
+
+- Pushed the branch but saw no checks: both workflows trigger on `pull_request`, so nothing runs until the PR exists.
+- Weakest labels at baseline: SEX 0%, ZIPCODE 5%, DRIVERLICENSENUM 7%, IDCARDNUM 8%, GENDER 8%, TITLE 19%. Mostly types Presidio has no recognizer for, or non-US formats.
 
 ### Interview talking points
