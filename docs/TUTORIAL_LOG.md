@@ -76,7 +76,7 @@ Started 2026-09-29.
 
 **Pieces:** GitHub Actions (primary), Terraform.
 
-**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. Next: break fmt on purpose to see a red check, fix it, then merge PR #1.
+**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. Broke fmt on purpose (`60903e9`), check went red as expected. Next: `terraform fmt`, push, see green, merge PR #1.
 
 ### Steps
 
@@ -105,6 +105,7 @@ git commit -m "Add Terraform fmt and validate checks on PRs"
 git push -u origin ci/terraform-checks
 gh pr create --fill                 # PR #1
 gh pr checks --watch                # checks: SUCCESS
+# step 6: misalign budget_type in budget.tf, commit, push  -> checks: fail (fmt step)
 ```
 
 ### Gotchas / things I got wrong
@@ -113,6 +114,7 @@ gh pr checks --watch                # checks: SUCCESS
 
 ### Interview talking points
 
+- Test the gate: make it fail on purpose before trusting a green check.
 - `validate` = internal consistency against the provider schema; `plan` = compared against real AWS (needs creds/state). Checks without credentials first, credentialed checks later.
 - `uses:` runs an action (someone else's repo at a tag); `run:` runs your shell command. Actions run with your token and later your cloud role, so pin them to SHAs: tags can be moved.
 - Runner VM starts empty: `checkout` clones the PR commit, `setup-terraform` puts the CLI on PATH.
