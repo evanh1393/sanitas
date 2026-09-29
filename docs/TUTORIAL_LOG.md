@@ -76,7 +76,7 @@ Started 2026-09-29.
 
 **Pieces:** GitHub Actions (primary), Terraform.
 
-**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. Broke fmt on purpose (`60903e9`), check went red as expected. Next: `terraform fmt`, push, see green, merge PR #1.
+**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. PR #1 green → red (deliberate misformat) → green, squash-merged as `2c6af35`. Step 8 (tflint) written by the agent at Evan's request on branch `ci/tflint`; next: push, PR, merge, tick PLAN item.
 
 ### Steps
 
@@ -85,6 +85,8 @@ Started 2026-09-29.
 - [x] 3. `fmt -check`
 - [x] 4. `init -backend=false` + `validate`
 - [x] 5. Push a branch, open a PR, watch it run
+- [x] 6. Break fmt on purpose, see red, fix, squash-merge
+- [ ] 8. tflint (agent-written; Evan said he's got Actions down)
 
 ### Decisions and why
 
@@ -94,6 +96,8 @@ Started 2026-09-29.
 - `terraform_version: "1.15.x"`: matches `required_version`, no surprise minor upgrades.
 - `terraform fmt -check -recursive infra`: non-zero exit fails the step → job → PR check. Covers future stacks automatically.
 - `init -backend=false` then `validate` in `infra/bootstrap`: validate needs the provider schema (downloaded per the committed lock file) but not state, so no AWS creds needed. `validate` isn't recursive; a matrix over stacks comes when there's a second stack.
+- tflint: repo-root `.tflint.hcl` with the `terraform` ruleset (`recommended` preset) and the `aws` ruleset (pinned 0.49.0). `tflint --init` downloads plugins (needs `GITHUB_TOKEN` to avoid GitHub API rate limits); `--recursive` lints every stack; `--config` is an absolute path so each stack uses the root config. Tested on a scratch file: flags `t9.huge` instance type (error), untyped and unused variables (warnings). Any issue fails the job.
+- Squash merge: the PR's test/fix commits collapse into one commit on `main`.
 - Actions pinned to major tags (`@v5`, `@v3`) for now; pin to commit SHAs in the week 2 security step.
 
 ### Commands run
@@ -106,6 +110,9 @@ git push -u origin ci/terraform-checks
 gh pr create --fill                 # PR #1
 gh pr checks --watch                # checks: SUCCESS
 # step 6: misalign budget_type in budget.tf, commit, push  -> checks: fail (fmt step)
+terraform fmt -recursive infra && git commit -am "Fix formatting" && git push   # green
+gh pr merge --squash --delete-branch
+git switch main && git pull
 ```
 
 ### Gotchas / things I got wrong
@@ -114,6 +121,7 @@ gh pr checks --watch                # checks: SUCCESS
 
 ### Interview talking points
 
+- fmt = style, validate = internally consistent, tflint = valid for AWS and best practice (bad instance types, unused/untyped variables, deprecated syntax). None need credentials.
 - Test the gate: make it fail on purpose before trusting a green check.
 - `validate` = internal consistency against the provider schema; `plan` = compared against real AWS (needs creds/state). Checks without credentials first, credentialed checks later.
 - `uses:` runs an action (someone else's repo at a tag); `run:` runs your shell command. Actions run with your token and later your cloud role, so pin them to SHAs: tags can be moved.
