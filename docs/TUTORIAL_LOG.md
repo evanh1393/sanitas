@@ -62,6 +62,12 @@ Console: switch role into 551626544335 (`OrganizationAccountAccessRole`), then B
 
 ### Interview talking points
 
+- Nothing is copied from the laptop's venv into the image. `uv.lock` travels; `uv sync --frozen` inside the build downloads the same versions and hashes. Laptop, image and CI install identical dependencies.
+- A venv is just a folder: installing = resolve, download a wheel (a zip), unpack into `site-packages`, write console scripts. Python imports from whatever is on `sys.path`.
+- Lambda layers: every layer zip is extracted into `/opt` as-is; the Python runtime adds `/opt/python` (and `/opt/python/lib/python3.x/site-packages`) to `sys.path`. That's why the zip's top folder must be `python/`. `/opt/bin` → `PATH`, `/opt/lib` → `LD_LIBRARY_PATH`. The `tf-sample` layer worked because `requests` is pure Python; compiled wheels (spaCy) must match Lambda's OS/arch/Python, and layers cap at 250 MB unzipped. Container images (10 GB) avoid both.
+- `docker images`: DISK USAGE = unpacked (Lambda limit, cold-start pull); CONTENT SIZE = compressed layers (ECR push and storage).
+- Layer cache rule: cached up to the first instruction whose inputs changed; that step and everything after it rebuild. `COPY . .` before `uv sync` means any code edit reinstalls every dependency.
+
 - Why a separate bootstrap stack: the state backend can't store its own state until it exists, so it's created with local state first, then migrated in.
 - State is Terraform's map from code to real resource IDs: a snapshot of what `apply` built, not a history (history = S3 versioning, git, CloudTrail).
 - Remote state is what lets CI run Terraform: the backend puts state somewhere reachable; IAM (OIDC role with S3 + `kms:Decrypt`/`GenerateDataKey`) decides who can reach it.
@@ -201,15 +207,15 @@ Started 2026-09-29.
 
 **Pieces:** Docker (primary), Python/uv (the thing inside the image).
 
-**Where we are (2026-09-29):** step 1 done: `uv init` on branch `lesson4/docker`, `uv run sanitas` prints the hello message, pushed. Next: step 2, write the tiny CLI entry point.
+**Where we are (2026-09-29):** steps 1–4 done and pushed on `lesson4/docker`: Dockerfile with deps layer before code layer; build + run prints the hello message. Next: step 5, spaCy model decision + real redaction CLI.
 
 ### Steps
 
 - [x] 1. Branch + minimal Python package with uv
-- [ ] 2. Tiny CLI entry point to containerize
-- [ ] 3. First Dockerfile: base image, copy, install, run
-- [ ] 4. `.dockerignore` + layer caching (deps before code)
-- [ ] 5. Add Presidio + spaCy model; watch image size
+- [x] 2. First Dockerfile + `.dockerignore` (hello world in a container; CLI logic deferred)
+- [x] 3. Add Presidio deps; rebuild with the naive Dockerfile, note size and time
+- [x] 4. Layer caching: deps layer before code layer
+- [ ] 5. spaCy model + real redaction CLI
 - [ ] 6. Run tests inside the container
 
 ### Decisions and why
@@ -217,6 +223,13 @@ Started 2026-09-29.
 - uv for Python packaging: one tool for the Python version, venv, dependencies and lock file. Fast, and the same `uv sync --frozen` works in the Dockerfile.
 - `--package` (src layout, `src/sanitas/`): the project is installable and gets a `sanitas` console command (`[project.scripts]`), so the container runs a real command. The src layout means tests import the installed package, not stray working-tree files. Redaction code will live in `src/sanitas/redact/` instead of the top-level `redact/` shown in CLAUDE.md.
 - Python 3.13 pinned (`.python-version`, `requires-python >=3.13`): matches the Lambda Python base image, and spaCy has solid prebuilt wheels for it. Laptop default is 3.14; uv downloads 3.13 for this project, so laptop and container use the same version.
+- Base image `python:3.13-slim` for now (small Debian + Python). Lambda's base image (`public.ecr.aws/lambda/python`) has its own runtime entrypoint; switch in Week 2.
+- uv copied in with `COPY --from=ghcr.io/astral-sh/uv:<version> /uv /bin/uv`: pulls only the binary from Astral's image, pinned.
+- `uv sync --frozen --no-dev`: install exactly the lock file, fail rather than re-resolve, skip dev tools.
+- `ENV PATH=/app/.venv/bin:$PATH` + exec-form `CMD ["sanitas"]`: run the console script directly, no `uv run` sync at startup, no shell wrapper (signals reach the process).
+- `.dockerignore`: `.venv` (host venv, host paths, would break the image), `.git`, `infra` out of the build context.
+- Presidio (`presidio-analyzer`, `presidio-anonymizer`) added with `uv add`: took the image from ~150 MB to 1.06 GB on disk (238 MB compressed). spaCy, numpy, thinc etc.; the English model is still to come.
+- Layer order: `COPY pyproject.toml uv.lock` → `uv sync --no-install-project` (deps only, ~900 MB, changes only when deps change) → `COPY . .` → `uv sync` (installs just `sanitas`, 0.2s). Least-changing layers first; same pattern as `package.json` before `npm install`.
 - `uv.lock` committed: exact versions of every dependency, so the image and CI install the same things the laptop did.
 
 ### Commands run
@@ -225,10 +238,17 @@ Started 2026-09-29.
 git switch -c lesson4/docker
 uv init --package --name sanitas --python 3.13   # from repo root; keeps existing README.md
 uv run sanitas                                   # downloads CPython 3.13, creates .venv, writes uv.lock -> "Hello from sanitas!"
+docker build -t sanitas:dev .
+docker run --rm sanitas:dev                      # "Hello from sanitas!"
+uv add presidio-analyzer presidio-anonymizer     # updates pyproject.toml + uv.lock
+docker images sanitas                            # 1.06GB disk, 238MB content
+docker history sanitas:dev                       # size per layer
+docker build --progress=plain -t sanitas:dev . 2>&1 | grep -E "CACHED|DONE|RUN|COPY"   # which steps hit cache
 ```
 
 ### Gotchas / things I got wrong
 
+- Dockerfile pinned uv `0.12.9` instead of `0.12.19` (typo). Still built, since the build backend (`uv_build`) is fetched separately, but the container's uv should match the one that wrote the lock.
 - `uv run` creates `.venv/` and `uv.lock` on first use. `.venv/` is already gitignored; `uv.lock` gets committed.
 
 ### Interview talking points

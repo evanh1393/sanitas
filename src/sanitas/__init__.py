@@ -1,2 +1,2 @@
 def main() -> None:
-    print("Hello from sanitas!")
+    print("Hello from sanitas and docker!")
