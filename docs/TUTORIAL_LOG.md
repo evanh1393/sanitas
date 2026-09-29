@@ -282,14 +282,14 @@ Started 2026-09-29.
 
 **Pieces:** GitHub Actions (primary), Docker (the same `docker build --target test` as on the laptop).
 
-**Where we are (2026-09-29):** step 1 done: `.github/workflows/docker.yml` on `lesson5/ci-docker-tests`, PR #7 green (`docker / test` 28 s, `terraform / checks` 23 s). Step 3 skipped: no layer cache. Step 2 in progress: red/green. Next: step 4, make `test` a required check.
+**Where we are (2026-09-29):** all steps done on PR #7 (`lesson5/ci-docker-tests`). `docker / test` green (28 s); red/green verified (broken assert → `1 failed`, exit 1, `terraform / checks` still green); layer cache skipped after measuring; `test` added to the `main` ruleset, and the red PR went `UNSTABLE` → `BLOCKED`, then `CLEAN` after the fix. **Lesson 5 complete once PR #7 merges.** Next: pick from PLAN.md Week 1 (lint step with ruff, `ModelProvider` interface, data + `DATA.md`, or the scoring harness).
 
 ### Steps
 
 - [x] 1. `docker.yml`: build `--target test`, run it, on every PR
-- [ ] 2. Red/green: deliberately failing test turns the PR red
+- [x] 2. Red/green: deliberately failing test turns the PR red
 - [x] 3. Layer cache between runs: skipped (decided from the 28 s measurement)
-- [ ] 4. Add `test` to the `main` ruleset as a required check
+- [x] 4. Add `test` to the `main` ruleset as a required check
 
 ### Decisions and why
 
@@ -304,13 +304,23 @@ Started 2026-09-29.
 gh pr create --fill
 gh pr checks --watch
 gh run view <run-id> --log | grep -E "DONE|Installed|passed"   # per-step build timings
+gh run view --log-failed                        # only the failing step's log
+gh pr view 7 --json mergeStateStatus -q .mergeStateStatus   # UNSTABLE -> BLOCKED -> CLEAN
+# UI: https://github.com/evanh1393/sanitas/settings/rules/24160450 -> Require status checks -> Add checks -> test
+gh api repos/evanh1393/sanitas/rulesets/24160450 --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks'
 ```
 
 ### Gotchas / things I got wrong
 
+- `gh pr checks` right after `git push` says "no checks reported": the new runs aren't queued yet. Wait a few seconds.
+- Pushing is what triggers the PR checks; an uncommitted change doesn't run anywhere.
+- Merge states: `UNSTABLE` = a non-required check failed, merge still allowed; `BLOCKED` = a required check failed or is missing; `CLEAN` = all good.
+- Required check name = job name (`test`), not workflow name (`docker`). `integration_id` 15368 = GitHub Actions, so only an Actions job named `test` satisfies it.
+- Agent mistake: said to edit the ruleset at Settings → Rules → Rulesets → `main`; the page Evan saw only offered "New ruleset". Direct edit URL works: `/settings/rules/<id>` (ID from `gh api repos/<owner>/<repo>/rulesets`).
 - Agent mistake: predicted the uncached CI build would be slow (~1 GB download every run) and planned a layer cache to fix it. Measured: deps layer `uv sync` 11.1 s (56 packages, incl. the spaCy model), whole job 28 s. Runners have fast networks and uv is quick; a cache that saves/restores a ~1.7 GB layer probably wouldn't pay for itself.
 
 ### Interview talking points
 
 - CI runs the same image target as the laptop; tests exercise the layers that ship.
 - Measured before optimizing: uncached build is 28 s, so no layer cache yet.
+- Proved the gate, not just the check: a red required check moves the PR from `UNSTABLE` (mergeable) to `BLOCKED`.
