@@ -375,3 +375,41 @@ uv run ruff check --fix .                          # auto-fix rules marked [*]
 - Lint and tests run in the same image, so the ruff version is pinned by the lock file; no "works on my machine" linter drift.
 - `.dockerignore` is a security control: the build context is everything not excluded, regardless of `.gitignore`. Verified by listing `/app` in the image.
 - An unused import passes the tests but fails lint: why both gates exist.
+
+## Week 1, lesson 7: labeled data + `DATA.md`
+
+Started 2026-09-29.
+
+**Goal:** a small, fixed, labeled sample committed to the repo, so the scoring harness (and later the CI eval gate) runs without network or credentials.
+
+**Pieces:** Python/uv (sampling script), Docker (sample must be inside the build context), GitHub Actions (later: harness scores this file on every PR).
+
+**Where we are (2026-09-29):** steps 1–2 done on `lesson7/data` (uncommitted): `eval/data/ai4privacy-en-200.jsonl`, 200 English records, 1,696 labeled spans; `DATA.md` has license + attribution (agent-written at Evan's request). Next: step 3, commit, PR, merge.
+
+### Steps
+
+- [x] 1. Sampling script → `eval/data/ai4privacy-en-200.jsonl`
+- [x] 2. `DATA.md`: source, license, attribution, how to regenerate
+- [ ] 3. Commit, PR, merge
+
+### Decisions and why
+
+- Dataset `ai4privacy/openpii-masking-mini-10k`: CC-BY-4.0, not gated. Other ai4privacy sets are "other"/custom licenses or gated commercial ones.
+- 200-record committed JSONL sample (train split, `language == "en"`, `shuffle(seed=42)`), not a download at test time: reproducible, no network in CI, numbers can't drift if upstream changes. Kept only `uid`, `text`, `spans`.
+- `uv run --with datasets`: one-off throwaway env; `datasets` (pyarrow, pandas) stays out of `uv.lock` and the image.
+- Lives in `eval/data/`, not `data/`: `.dockerignore` excludes `data`, and the harness will run in the test image.
+
+### Commands run
+
+```bash
+git switch -c lesson7/data
+uv run --with datasets scripts/sample_ai4privacy.py
+wc -l eval/data/ai4privacy-en-200.jsonl         # 200
+```
+
+### Gotchas / things I got wrong
+
+- "Import could not be resolved" in the editor: `--with` deps live in a temporary env, not `.venv`. Harmless.
+- Data is synthetic and mostly non-US formats (Canadian postal codes, 10-digit "social" numbers, `+7689036 9349` phones). Presidio's US recognizers (`US_SSN`) won't match many of these: expect low recall on some labels for format reasons, not model reasons.
+
+### Interview talking points
