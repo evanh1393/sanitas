@@ -208,7 +208,7 @@ Started 2026-09-29.
 
 **Pieces:** Docker (primary), Python/uv (the thing inside the image).
 
-**Where we are (2026-09-29):** steps 1–6 done and pushed on `lesson4/docker`: `en_core_web_lg` added as a locked URL dependency; uv cache mount keeps a 729 MB duplicate out of the image. Step 7 done (not yet committed): `echo ... | docker run --rm -i sanitas:dev` redacts name, phone, email, SSN. Step 8 in progress: pytest added as a dev dependency, `tests/test_redact.py` (2 tests) passes locally with `uv run pytest`. Merged to `main` as PR #5 (`61bf2d7`). Decided (after going back and forth): multi-stage Dockerfile with a `test` target. `base`/`test`/`runtime` stages written; `docker run --rm sanitas:test` → `2 passed`, exit 0. Red/green check done: broken assert → `1 failed`, exit 1; fixed → `2 passed`, exit 0, and only `COPY . .` onward rebuilt. Step 8 done. Next: commit on `lesson4/docker-tests`, PR, merge; then lesson 6 (GitHub Actions runs the test image on every PR).
+**Where we are (2026-09-29):** steps 1–6 done and pushed on `lesson4/docker`: `en_core_web_lg` added as a locked URL dependency; uv cache mount keeps a 729 MB duplicate out of the image. Step 7 done (not yet committed): `echo ... | docker run --rm -i sanitas:dev` redacts name, phone, email, SSN. Step 8 in progress: pytest added as a dev dependency, `tests/test_redact.py` (2 tests) passes locally with `uv run pytest`. Merged to `main` as PR #5 (`61bf2d7`). Decided (after going back and forth): multi-stage Dockerfile with a `test` target. `base`/`test`/`runtime` stages written; `docker run --rm sanitas:test` → `2 passed`, exit 0. Red/green check done: broken assert → `1 failed`, exit 1; fixed → `2 passed`, exit 0, and only `COPY . .` onward rebuilt. Step 8 done, merged as PR #6 (`17c3049`). **Lesson 4 complete.** Next: lesson 5, GitHub Actions builds the image and runs `sanitas:test` on every PR (PLAN.md Week 1 CI items; also decide how the required `checks` gate covers non-`infra/` PRs, and the empty uv cache mount on runners).
 
 ### Steps
 
@@ -273,3 +273,54 @@ docker run --rm sanitas:test; echo "exit: $?"   # 2 passed, exit: 0
 - Agent mistake: said `docker images` DISK USAGE = unpacked image. With the containerd image store it's unpacked + compressed content (2.76 GB ≈ 1.7 GB unpacked + 1.05 GB compressed). CONTENT SIZE ≈ what's pushed to ECR; `du` inside the container = unpacked. `.venv/` is already gitignored; `uv.lock` gets committed.
 
 ### Interview talking points
+
+## Week 1, lesson 5: GitHub Actions builds the image and runs the tests
+
+Started 2026-09-29.
+
+**Goal:** every PR builds the `test` target and runs pytest inside it, so a PR that breaks the image or the tests can't merge.
+
+**Pieces:** GitHub Actions (primary), Docker (the same `docker build --target test` as on the laptop).
+
+**Where we are (2026-09-29):** all steps done on PR #7 (`lesson5/ci-docker-tests`). `docker / test` green (28 s); red/green verified (broken assert → `1 failed`, exit 1, `terraform / checks` still green); layer cache skipped after measuring; `test` added to the `main` ruleset, and the red PR went `UNSTABLE` → `BLOCKED`, then `CLEAN` after the fix. **Lesson 5 complete once PR #7 merges.** Next: pick from PLAN.md Week 1 (lint step with ruff, `ModelProvider` interface, data + `DATA.md`, or the scoring harness).
+
+### Steps
+
+- [x] 1. `docker.yml`: build `--target test`, run it, on every PR
+- [x] 2. Red/green: deliberately failing test turns the PR red
+- [x] 3. Layer cache between runs: skipped (decided from the 28 s measurement)
+- [x] 4. Add `test` to the `main` ruleset as a required check
+
+### Decisions and why
+
+- Separate workflow file (`docker.yml`) instead of a second job in `terraform.yml`: one concern per file; checks list shows `docker / test` next to `terraform / checks`. The job name `test` is what the ruleset will require.
+- No `paths` filter: a required check that gets skipped leaves the PR stuck (lesson 3).
+- `docker run` exit code = pytest exit code = step result; no extra wiring to fail the job.
+- No layer cache (buildx `type=gha`) for now: the uncached job takes 28 s, and saving/restoring a ~1.7 GB layer likely costs more than it saves. Revisit in week 2 when CI pushes to ECR (a registry cache is an option then).
+
+### Commands run
+
+```bash
+gh pr create --fill
+gh pr checks --watch
+gh run view <run-id> --log | grep -E "DONE|Installed|passed"   # per-step build timings
+gh run view --log-failed                        # only the failing step's log
+gh pr view 7 --json mergeStateStatus -q .mergeStateStatus   # UNSTABLE -> BLOCKED -> CLEAN
+# UI: https://github.com/evanh1393/sanitas/settings/rules/24160450 -> Require status checks -> Add checks -> test
+gh api repos/evanh1393/sanitas/rulesets/24160450 --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks'
+```
+
+### Gotchas / things I got wrong
+
+- `gh pr checks` right after `git push` says "no checks reported": the new runs aren't queued yet. Wait a few seconds.
+- Pushing is what triggers the PR checks; an uncommitted change doesn't run anywhere.
+- Merge states: `UNSTABLE` = a non-required check failed, merge still allowed; `BLOCKED` = a required check failed or is missing; `CLEAN` = all good.
+- Required check name = job name (`test`), not workflow name (`docker`). `integration_id` 15368 = GitHub Actions, so only an Actions job named `test` satisfies it.
+- Agent mistake: said to edit the ruleset at Settings → Rules → Rulesets → `main`; the page Evan saw only offered "New ruleset". Direct edit URL works: `/settings/rules/<id>` (ID from `gh api repos/<owner>/<repo>/rulesets`).
+- Agent mistake: predicted the uncached CI build would be slow (~1 GB download every run) and planned a layer cache to fix it. Measured: deps layer `uv sync` 11.1 s (56 packages, incl. the spaCy model), whole job 28 s. Runners have fast networks and uv is quick; a cache that saves/restores a ~1.7 GB layer probably wouldn't pay for itself.
+
+### Interview talking points
+
+- CI runs the same image target as the laptop; tests exercise the layers that ship.
+- Measured before optimizing: uncached build is 28 s, so no layer cache yet.
+- Proved the gate, not just the check: a red required check moves the PR from `UNSTABLE` (mergeable) to `BLOCKED`.

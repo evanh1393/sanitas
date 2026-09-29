@@ -17,13 +17,13 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - [x] AWS account: MFA, budget alarm, Terraform state backend. (Done 2026-09-29. MFA was already on the IAM user that assumes into the account.)
 - [ ] Get the data; write `DATA.md` with each license.
 - [ ] `ModelProvider` interface: `BedrockConverseProvider` (real) and `FakeProvider` (tests). Model ID from config.
-- [ ] Local redaction CLI using Presidio.
-- [ ] Dockerfile for the redaction code; tests run inside the container.
+- [x] Local redaction CLI using Presidio.
+- [x] Dockerfile for the redaction code; tests run inside the container.
 - [ ] Scoring harness against ai4privacy (recall, precision).
 - [ ] Decision record: why Python, why Presidio first.
 - CI/CD:
-  - [ ] First workflow: lint + unit tests (fake provider) on every PR.
-  - [ ] Build the Docker image in CI and run the tests inside it.
+  - [ ] First workflow: lint + unit tests (fake provider) on every PR. (Unit tests run in `docker / test` since PR #7; lint and the fake provider still to do.)
+  - [x] Build the Docker image in CI and run the tests inside it. (Done 2026-09-29: PR #7 `docker.yml`, job `test` required in the `main` ruleset. No layer cache: uncached run is 28 s.)
   - [x] Terraform checks in CI: `fmt -check`, `validate`, `tflint`. (Done 2026-09-29: PR #1 fmt + validate, PR #2 tflint with the AWS ruleset.)
   - [x] Branch protection on `main`: PRs only, required checks must pass. (Done 2026-09-29: repo made public for free rulesets; ruleset `main` requires a PR and `checks`, no bypass. PR #3 dropped the workflow's `paths` filter.)
 - **Demo:** "Redaction catches X% of personal data across N labeled records," plus the command that reproduces it.
