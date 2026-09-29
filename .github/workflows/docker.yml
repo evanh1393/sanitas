@@ -17,3 +17,9 @@ jobs:
 
       - name: run tests
         run: docker run --rm sanitas:test
+
+      - name: ruff check
+        run: docker run --rm sanitas:test ruff check .
+
+      - name: ruff format
+        run: docker run --rm sanitas:test ruff format --check .

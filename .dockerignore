@@ -3,3 +3,9 @@
 infra
 **/__pycache__
 .pytest_cache
+.env
+.env.*
+CLAUDE.local.md
+.claude
+.ruff_cache
+data
