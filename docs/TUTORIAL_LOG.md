@@ -208,7 +208,7 @@ Started 2026-09-29.
 
 **Pieces:** Docker (primary), Python/uv (the thing inside the image).
 
-**Where we are (2026-09-29):** steps 1–6 done and pushed on `lesson4/docker`: `en_core_web_lg` added as a locked URL dependency; uv cache mount keeps a 729 MB duplicate out of the image. Step 7 done (not yet committed): `echo ... | docker run --rm -i sanitas:dev` redacts name, phone, email, SSN. Step 8 in progress: pytest added as a dev dependency, `tests/test_redact.py` (2 tests) passes locally with `uv run pytest`. Next: multi-stage Dockerfile with a `test` target so the same tests run inside the image.
+**Where we are (2026-09-29):** steps 1–6 done and pushed on `lesson4/docker`: `en_core_web_lg` added as a locked URL dependency; uv cache mount keeps a 729 MB duplicate out of the image. Step 7 done (not yet committed): `echo ... | docker run --rm -i sanitas:dev` redacts name, phone, email, SSN. Step 8 in progress: pytest added as a dev dependency, `tests/test_redact.py` (2 tests) passes locally with `uv run pytest`. Merged to `main` as PR #5 (`61bf2d7`). Decided (after going back and forth): multi-stage Dockerfile with a `test` target. `base`/`test`/`runtime` stages written; `docker run --rm sanitas:test` → `2 passed`, exit 0. Red/green check done: broken assert → `1 failed`, exit 1; fixed → `2 passed`, exit 0, and only `COPY . .` onward rebuilt. Step 8 done. Next: commit on `lesson4/docker-tests`, PR, merge; then lesson 6 (GitHub Actions runs the test image on every PR).
 
 ### Steps
 
@@ -219,7 +219,7 @@ Started 2026-09-29.
 - [x] 5. spaCy model `en_core_web_lg` as a uv URL dependency
 - [x] 6. uv cache mount: keep uv's download cache out of the image
 - [x] 7. Real redaction CLI (Presidio, stdin → redacted stdout)
-- [ ] 8. Run tests inside the container
+- [x] 8. Run tests inside the container (multi-stage `test` target)
 
 ### Decisions and why
 
@@ -237,6 +237,7 @@ Started 2026-09-29.
 - Model added as a URL dependency (`en_core_web_lg @ https://github.com/explosion/spacy-models/releases/...-3.8.0-py3-none-any.whl`), not `python -m spacy download` in the Dockerfile: pinned with a hash in `uv.lock`, lands in the cached deps layer, same model on laptop, image and CI. Model 3.8.x must match spaCy 3.8.x; `py3-none-any` = pure data/Python, works on any platform.
 - BuildKit cache mount (`RUN --mount=type=cache,target=/root/.cache/uv`) on both `uv sync` steps: uv's cache lives on the build host, never in a layer. Also makes rebuilds after a lock change download only what's new. `ENV UV_LINK_MODE=copy` because hardlinks can't cross from the mount into the image filesystem. Alternative `UV_NO_CACHE=1` also keeps it out but loses the rebuild speedup. On GitHub runners the mount starts empty each job (fresh VM); handle in lesson 6.
 - CLI: `redact(text) -> str` (pure function, testable without stdin) + `main()` (stdin → stdout). `AnalyzerEngine` finds entities with confidence scores (the future human-review threshold); `AnonymizerEngine` replaces spans with `<ENTITY_TYPE>`. Engines created per call for now; in Lambda they move to module level so the model loads once per cold start.
+- Tests run in a multi-stage Dockerfile `test` target (`base` → `test` / `runtime`), not with uv on the Actions runner. Tests exercise the same layers that ship; pytest stays out of the runtime image. CI logic still lives in Actions: the workflow just runs `docker build --target test` and `docker run`. Considered and rejected: `uv run pytest` on the runner (simpler, faster, but never tests the image).
 - `uv.lock` committed: exact versions of every dependency, so the image and CI install the same things the laptop did.
 
 ### Commands run
@@ -258,12 +259,16 @@ docker run --rm sanitas:dev du -sh /root/.cache/uv /app/.venv   # 729M + 729M: u
 echo "Call Maria Lopez at 212-555-0198 or maria.lopez@example.com. SSN 536-22-8134." \
   | docker run --rm -i sanitas:dev              # Call <PERSON> at <PHONE_NUMBER> or <EMAIL_ADDRESS>. SSN <US_SSN>.
 docker run --rm sanitas:dev du -sh /root/.cache/uv /app/.venv   # cache: no such file; venv 729M
+docker build --target test -t sanitas:test .   # builds base + test, skips runtime
+docker run --rm sanitas:test; echo "exit: $?"   # 2 passed, exit: 0
 ```
 
 ### Gotchas / things I got wrong
 
 - Dockerfile pinned uv `0.12.9` instead of `0.12.19` (typo). Still built, since the build backend (`uv_build`) is fetched separately, but the container's uv should match the one that wrote the lock.
 - `uv run` creates `.venv/` and `uv.lock` on first use.
+- `.dockerignore` patterns are root-relative: `__pycache__` only matches `./__pycache__`; use `**/__pycache__`. (`.gitignore` matches bare names at any depth.)
+- `--no-cache` rebuilds your steps but doesn't re-pull base images (`--pull` does) and doesn't clear the uv cache mount.
 - Image was 1.8 GB bigger than expected: `uv sync` in a plain `RUN` writes its download cache to `/root/.cache/uv`, which gets saved into the layer. Found by `du` inside the container (`docker run <image> <cmd>` overrides `CMD`).
 - Agent mistake: said `docker images` DISK USAGE = unpacked image. With the containerd image store it's unpacked + compressed content (2.76 GB ≈ 1.7 GB unpacked + 1.05 GB compressed). CONTENT SIZE ≈ what's pushed to ECR; `du` inside the container = unpacked. `.venv/` is already gitignored; `uv.lock` gets committed.
 

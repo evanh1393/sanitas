@@ -1,3 +1,5 @@
 .venv
 .git
 infra
+**/__pycache__
+.pytest_cache
