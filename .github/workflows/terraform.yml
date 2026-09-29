@@ -1,0 +1,31 @@
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.x"
+      
+      - name: fmt
+        run: terraform fmt -check -recursive infra
+        
+      - name: init
+        working-directory: infra/bootstrap
+        run: terraform init -backend=false
+
+      - name: validate
+        working-directory: infra/bootstrap
+        run: terraform validate

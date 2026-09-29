@@ -67,3 +67,55 @@ Console: switch role into 551626544335 (`OrganizationAccountAccessRole`), then B
 - Remote state is what lets CI run Terraform: the backend puts state somewhere reachable; IAM (OIDC role with S3 + `kms:Decrypt`/`GenerateDataKey`) decides who can reach it.
 - Human access: IAM user with MFA → `aws login` (short-lived creds) → assume `OrganizationAccountAccessRole`. No access keys anywhere.
 - Locking: S3 `use_lockfile` now; S3 + DynamoDB is the older pattern you'll see in most codebases.
+
+## Week 1, lesson 2: first GitHub Actions workflow (`.github/workflows/terraform.yml`)
+
+Started 2026-09-29.
+
+**Goal:** every PR that touches `infra/` gets `terraform fmt -check` and `terraform validate` run automatically, with no AWS credentials.
+
+**Pieces:** GitHub Actions (primary), Terraform.
+
+**Where we are (2026-09-29):** steps 1–5 done; PR #1 (`ci/terraform-checks`) green. Broke fmt on purpose (`60903e9`), check went red as expected. Next: `terraform fmt`, push, see green, merge PR #1.
+
+### Steps
+
+- [x] 1. Workflow file + trigger (PRs touching `infra/`)
+- [x] 2. Job: checkout + install Terraform
+- [x] 3. `fmt -check`
+- [x] 4. `init -backend=false` + `validate`
+- [x] 5. Push a branch, open a PR, watch it run
+
+### Decisions and why
+
+- Trigger: `pull_request` with `paths` on `infra/**` and the workflow file itself, so non-Terraform PRs skip it and edits to the workflow test themselves. (Path filters vs required checks gets revisited at branch protection.)
+- `permissions: contents: read`: least-privilege `GITHUB_TOKEN`. `id-token: write` gets added with OIDC.
+- `runs-on: ubuntu-latest`: GitHub-hosted runners are Ubuntu, Windows or macOS only (no Fedora/RHEL; use `container:` or self-hosted for that). Fresh VM per job = reproducible. The OS that matters is the one inside the Docker image (Lambda base images = Amazon Linux 2023).
+- `terraform_version: "1.15.x"`: matches `required_version`, no surprise minor upgrades.
+- `terraform fmt -check -recursive infra`: non-zero exit fails the step → job → PR check. Covers future stacks automatically.
+- `init -backend=false` then `validate` in `infra/bootstrap`: validate needs the provider schema (downloaded per the committed lock file) but not state, so no AWS creds needed. `validate` isn't recursive; a matrix over stacks comes when there's a second stack.
+- Actions pinned to major tags (`@v5`, `@v3`) for now; pin to commit SHAs in the week 2 security step.
+
+### Commands run
+
+```bash
+git switch -c ci/terraform-checks
+git add .github/workflows/terraform.yml docs/TUTORIAL_LOG.md
+git commit -m "Add Terraform fmt and validate checks on PRs"
+git push -u origin ci/terraform-checks
+gh pr create --fill                 # PR #1
+gh pr checks --watch                # checks: SUCCESS
+# step 6: misalign budget_type in budget.tf, commit, push  -> checks: fail (fmt step)
+```
+
+### Gotchas / things I got wrong
+
+- VS Code flags the workflow as invalid until it has a `jobs:` block. It's just incomplete, not broken.
+
+### Interview talking points
+
+- Test the gate: make it fail on purpose before trusting a green check.
+- `validate` = internal consistency against the provider schema; `plan` = compared against real AWS (needs creds/state). Checks without credentials first, credentialed checks later.
+- `uses:` runs an action (someone else's repo at a tag); `run:` runs your shell command. Actions run with your token and later your cloud role, so pin them to SHAs: tags can be moved.
+- Runner VM starts empty: `checkout` clones the PR commit, `setup-terraform` puts the CLI on PATH.
+- `ubuntu-24.04-arm` exists: matters for building arm64 (Graviton) Lambda images natively, about 20% cheaper Lambda.
