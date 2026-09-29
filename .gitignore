@@ -1,0 +1,27 @@
+# Secrets and local context
+.env
+.env.*
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+crash.log
+
+# Build artifacts
+build/
+*.zip
+
+# Downloaded datasets (see DATA.md)
+data/raw/
