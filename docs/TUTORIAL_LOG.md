@@ -10,7 +10,7 @@ Started 2026-09-29.
 
 **Pieces:** Terraform (primary), AWS Budgets, S3, KMS.
 
-**Where we are (2026-09-29):** steps 1–4 done; bootstrap state now lives in `s3://sanitas-tfstate-551626544335/bootstrap/terraform.tfstate`. Next: delete the local `terraform.tfstate*` leftovers, commit. MFA is the last open item on the Week 1 account task.
+**Where we are (2026-09-29):** steps 1–4 done; bootstrap state now lives in `s3://sanitas-tfstate-551626544335/bootstrap/terraform.tfstate`. Local leftovers deleted, committed (`91ca5bf`). MFA confirmed on; Week 1 account task ticked. Lesson 1 complete. Next: lesson 2, first GitHub Actions workflow (`terraform fmt -check` + `validate` on PRs touching `infra/`).
 
 ### Steps
 
@@ -65,4 +65,5 @@ Console: switch role into 551626544335 (`OrganizationAccountAccessRole`), then B
 - Why a separate bootstrap stack: the state backend can't store its own state until it exists, so it's created with local state first, then migrated in.
 - State is Terraform's map from code to real resource IDs: a snapshot of what `apply` built, not a history (history = S3 versioning, git, CloudTrail).
 - Remote state is what lets CI run Terraform: the backend puts state somewhere reachable; IAM (OIDC role with S3 + `kms:Decrypt`/`GenerateDataKey`) decides who can reach it.
+- Human access: IAM user with MFA → `aws login` (short-lived creds) → assume `OrganizationAccountAccessRole`. No access keys anywhere.
 - Locking: S3 `use_lockfile` now; S3 + DynamoDB is the older pattern you'll see in most codebases.

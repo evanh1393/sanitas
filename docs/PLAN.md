@@ -14,7 +14,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 ## Week 1: foundation and redaction scoring
 
 - [ ] README skeleton. (License done: MIT.)
-- [ ] AWS account: MFA, budget alarm, Terraform state backend. (Budget and S3 state backend done 2026-09-29; MFA left.)
+- [x] AWS account: MFA, budget alarm, Terraform state backend. (Done 2026-09-29. MFA was already on the IAM user that assumes into the account.)
 - [ ] Get the data; write `DATA.md` with each license.
 - [ ] `ModelProvider` interface: `BedrockConverseProvider` (real) and `FakeProvider` (tests). Model ID from config.
 - [ ] Local redaction CLI using Presidio.
