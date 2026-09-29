@@ -26,4 +26,5 @@ en-core-web-lg = { url = "https://github.com/explosion/spacy-models/releases/dow
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.9",
 ]
