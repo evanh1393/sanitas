@@ -5,6 +5,7 @@ on:
     paths:
       - "infra/**"
       - ".github/workflows/terraform.yml"
+      - ".tflint.hcl"
 
 permissions:
   contents: read
@@ -18,10 +19,10 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.15.x"
-      
+
       - name: fmt
         run: terraform fmt -check -recursive infra
-        
+
       - name: init
         working-directory: infra/bootstrap
         run: terraform init -backend=false
@@ -29,3 +30,15 @@ jobs:
       - name: validate
         working-directory: infra/bootstrap
         run: terraform validate
+
+      - uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.64.0
+
+      - name: tflint init
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: tflint
+        run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"

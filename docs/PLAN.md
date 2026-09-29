@@ -24,7 +24,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - CI/CD:
   - [ ] First workflow: lint + unit tests (fake provider) on every PR.
   - [ ] Build the Docker image in CI and run the tests inside it.
-  - [ ] Terraform checks in CI: `fmt -check`, `validate`, `tflint`.
+  - [ ] Terraform checks in CI: `fmt -check`, `validate`, `tflint`. (`fmt` + `validate` done 2026-09-29, PR #1; `tflint` left.)
   - [ ] Branch protection on `main`: PRs only, required checks must pass.
 - **Demo:** "Redaction catches X% of personal data across N labeled records," plus the command that reproduces it.
 
