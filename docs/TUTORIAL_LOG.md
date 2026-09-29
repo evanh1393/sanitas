@@ -192,3 +192,43 @@ gh pr checks 3 --watch && gh pr merge 3 --squash --delete-branch && git pull
 - `data` blocks read existing things (never create). Upcoming: `aws_kms_alias` to find the project key, `aws_partition` and `aws_caller_identity` for GovCloud-safe ARNs.
 - Without a remote backend: local state, invisible to CI (fresh VM would try to recreate everything), no locking, lost with the laptop, plaintext on disk.
 - Lint checks never touch the bucket (`init -backend=false`). `plan` in Week 2 will, via OIDC with S3 read and KMS decrypt.
+
+## Week 1, lesson 4: Docker (containerize the Python project)
+
+Started 2026-09-29.
+
+**Goal:** one image that runs the redaction code and its tests, identical on the laptop, in CI and later in Lambda.
+
+**Pieces:** Docker (primary), Python/uv (the thing inside the image).
+
+**Where we are (2026-09-29):** step 1 done: `uv init` on branch `lesson4/docker`, `uv run sanitas` prints the hello message, pushed. Next: step 2, write the tiny CLI entry point.
+
+### Steps
+
+- [x] 1. Branch + minimal Python package with uv
+- [ ] 2. Tiny CLI entry point to containerize
+- [ ] 3. First Dockerfile: base image, copy, install, run
+- [ ] 4. `.dockerignore` + layer caching (deps before code)
+- [ ] 5. Add Presidio + spaCy model; watch image size
+- [ ] 6. Run tests inside the container
+
+### Decisions and why
+
+- uv for Python packaging: one tool for the Python version, venv, dependencies and lock file. Fast, and the same `uv sync --frozen` works in the Dockerfile.
+- `--package` (src layout, `src/sanitas/`): the project is installable and gets a `sanitas` console command (`[project.scripts]`), so the container runs a real command. The src layout means tests import the installed package, not stray working-tree files. Redaction code will live in `src/sanitas/redact/` instead of the top-level `redact/` shown in CLAUDE.md.
+- Python 3.13 pinned (`.python-version`, `requires-python >=3.13`): matches the Lambda Python base image, and spaCy has solid prebuilt wheels for it. Laptop default is 3.14; uv downloads 3.13 for this project, so laptop and container use the same version.
+- `uv.lock` committed: exact versions of every dependency, so the image and CI install the same things the laptop did.
+
+### Commands run
+
+```bash
+git switch -c lesson4/docker
+uv init --package --name sanitas --python 3.13   # from repo root; keeps existing README.md
+uv run sanitas                                   # downloads CPython 3.13, creates .venv, writes uv.lock -> "Hello from sanitas!"
+```
+
+### Gotchas / things I got wrong
+
+- `uv run` creates `.venv/` and `uv.lock` on first use. `.venv/` is already gitignored; `uv.lock` gets committed.
+
+### Interview talking points
