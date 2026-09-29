@@ -23,3 +23,6 @@ jobs:
 
       - name: ruff format
         run: docker run --rm sanitas:test ruff format --check .
+
+      - name: redaction eval
+        run: docker run --rm sanitas:test python eval/score.py

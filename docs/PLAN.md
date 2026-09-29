@@ -19,7 +19,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - [ ] `ModelProvider` interface: `BedrockConverseProvider` (real) and `FakeProvider` (tests). Model ID from config.
 - [x] Local redaction CLI using Presidio.
 - [x] Dockerfile for the redaction code; tests run inside the container.
-- [ ] Scoring harness against ai4privacy (recall, precision).
+- [x] Scoring harness against ai4privacy (recall, precision). (Done 2026-09-29: `eval/score.py`, baseline recall 69.1%, precision 90.1%; CI gate at 65% / 85% in the `test` job, PR #10.)
 - [ ] Decision record: why Python, why Presidio first.
 - CI/CD:
   - [ ] First workflow: lint + unit tests (fake provider) on every PR. (Unit tests run in `docker / test` since PR #7; ruff lint + format since PR #8. Fake provider still to do.)

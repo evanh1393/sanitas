@@ -418,3 +418,50 @@ wc -l eval/data/ai4privacy-en-200.jsonl         # 200
 - CC-BY-4.0 allows redistribution with attribution: creator, source link, license link, and a note of changes. Committing a sample is redistribution, so `DATA.md` carries all four.
 - A small committed sample makes the eval hermetic: CI scores it with no network, no credentials, and no upstream drift. Seeded sampling script = provenance.
 - Run the CI gate locally first (`ruff check`, `ruff format --check`): seconds instead of a CI round-trip.
+
+## Week 1, lesson 8: scoring harness
+
+Started 2026-09-29.
+
+**Goal:** one command prints redaction recall and precision against the 200-record sample; later the same command gates PRs in CI.
+
+**Pieces:** Docker (harness runs in the `test` image), GitHub Actions (later: eval gate job). Python written by the agent at Evan's request: the code isn't what this project demonstrates.
+
+**Where we are (2026-09-29):** all steps done on PR #10. `redaction eval` step in `docker.yml` runs `eval/score.py` in the `test` image; CI printed the same 69.1% / 90.1% as the laptop. Red/green skipped (floor failure verified locally: exit 1). Merged by the agent at Evan's request. **Lesson 8 complete.** Next: Week 2 DevOps, starting with the GitHub OIDC provider + deploy role in Terraform.
+
+### Steps
+
+- [x] 1. `detect()` + `eval/score.py` (agent-written)
+- [x] 2. Run locally and in the `test` image; record baseline
+- [x] 3. CI eval gate: fail the `test` job below the floors
+- [x] 4. PR, merge (red/green skipped; failure path checked locally)
+
+### Decisions and why
+
+- Character coverage, not any-overlap: a half-redacted SSN is a leak, so partial catches score partially.
+- Label-agnostic: the job is removal; a phone caught as the wrong type is still redacted. No ai4privacy → Presidio label mapping.
+- Report recall (what leaked) and precision (how much was over-redacted), plus per-label recall worst-first.
+- `@cache` on the `AnalyzerEngine`: spaCy model loads once per process, not per record (same pattern as Lambda cold start).
+- Floors: recall 65%, precision 85% (Evan's pick; baseline 69.1% / 90.1%). Constants at the top of `score.py`; `sys.exit(msg)` → exit 1 → step fails → `test` fails → PR blocked. No ruleset change: `test` was already required.
+- Eval runs as the last step of `test`: slowest step, so tests and lint give feedback first.
+- Harness is a plain script in `eval/`, found by `Path(__file__)`, so it runs the same on the laptop and at `/app` in the container.
+
+### Commands run
+
+```bash
+git switch -c lesson8/scoring
+uv run python eval/score.py                              # recall 69.1%, precision 90.1%
+docker build --target test -t sanitas:test .
+docker run --rm sanitas:test python eval/score.py        # same numbers in the image
+```
+
+### Gotchas / things I got wrong
+
+- Pushed the branch but saw no checks: both workflows trigger on `pull_request`, so nothing runs until the PR exists.
+- Weakest labels at baseline: SEX 0%, ZIPCODE 5%, DRIVERLICENSENUM 7%, IDCARDNUM 8%, GENDER 8%, TITLE 19%. Mostly types Presidio has no recognizer for, or non-US formats.
+
+### Interview talking points
+
+- Eval gate = a test that fails the build on a metric, not on a bug. Same exit-code chain as pytest and ruff.
+- Same image, same lock file, same data → identical numbers on laptop and CI; no tolerance for noise needed.
+- Scope note (Evan, 2026-09-29): the app is a "jazzier hello world" with a Bedrock hook; the project is about CI/CD and DevOps.
