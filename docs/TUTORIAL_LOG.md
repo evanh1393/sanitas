@@ -418,3 +418,38 @@ wc -l eval/data/ai4privacy-en-200.jsonl         # 200
 - CC-BY-4.0 allows redistribution with attribution: creator, source link, license link, and a note of changes. Committing a sample is redistribution, so `DATA.md` carries all four.
 - A small committed sample makes the eval hermetic: CI scores it with no network, no credentials, and no upstream drift. Seeded sampling script = provenance.
 - Run the CI gate locally first (`ruff check`, `ruff format --check`): seconds instead of a CI round-trip.
+
+## Week 1, lesson 8: scoring harness
+
+Started 2026-09-29.
+
+**Goal:** one command prints redaction recall and precision against the 200-record sample; later the same command gates PRs in CI.
+
+**Pieces:** Docker (harness runs in the `test` image), GitHub Actions (later: eval gate job). Python written by the agent at Evan's request: the code isn't what this project demonstrates.
+
+**Where we are (2026-09-29):** step 1 done on `lesson8/scoring` (uncommitted): `detect()` in `src/sanitas/__init__.py`, `eval/score.py`. Next: step 2, run it locally, then inside the `test` image.
+
+### Steps
+
+- [x] 1. `detect()` + `eval/score.py` (agent-written)
+- [ ] 2. Run locally and in the `test` image; record baseline
+- [ ] 3. Commit, PR, merge
+
+### Decisions and why
+
+- Character coverage, not any-overlap: a half-redacted SSN is a leak, so partial catches score partially.
+- Label-agnostic: the job is removal; a phone caught as the wrong type is still redacted. No ai4privacy → Presidio label mapping.
+- Report recall (what leaked) and precision (how much was over-redacted), plus per-label recall worst-first.
+- `@cache` on the `AnalyzerEngine`: spaCy model loads once per process, not per record (same pattern as Lambda cold start).
+- Harness is a plain script in `eval/`, found by `Path(__file__)`, so it runs the same on the laptop and at `/app` in the container.
+
+### Commands run
+
+```bash
+git switch -c lesson8/scoring
+uv run python eval/score.py
+```
+
+### Gotchas / things I got wrong
+
+### Interview talking points
