@@ -65,7 +65,8 @@ Console: switch role into 551626544335 (`OrganizationAccountAccessRole`), then B
 - Nothing is copied from the laptop's venv into the image. `uv.lock` travels; `uv sync --frozen` inside the build downloads the same versions and hashes. Laptop, image and CI install identical dependencies.
 - A venv is just a folder: installing = resolve, download a wheel (a zip), unpack into `site-packages`, write console scripts. Python imports from whatever is on `sys.path`.
 - Lambda layers: every layer zip is extracted into `/opt` as-is; the Python runtime adds `/opt/python` (and `/opt/python/lib/python3.x/site-packages`) to `sys.path`. That's why the zip's top folder must be `python/`. `/opt/bin` → `PATH`, `/opt/lib` → `LD_LIBRARY_PATH`. The `tf-sample` layer worked because `requests` is pure Python; compiled wheels (spaCy) must match Lambda's OS/arch/Python, and layers cap at 250 MB unzipped. Container images (10 GB) avoid both.
-- `docker images`: DISK USAGE = unpacked (Lambda limit, cold-start pull); CONTENT SIZE = compressed layers (ECR push and storage).
+- `docker images` (containerd store): DISK USAGE = unpacked + compressed on this machine; CONTENT SIZE = compressed layers (ECR push and storage).
+- Anything a `RUN` writes stays in that layer forever, even if a later step deletes it. Keep caches and build junk out with cache mounts (or multi-stage builds).
 - Layer cache rule: cached up to the first instruction whose inputs changed; that step and everything after it rebuild. `COPY . .` before `uv sync` means any code edit reinstalls every dependency.
 
 - Why a separate bootstrap stack: the state backend can't store its own state until it exists, so it's created with local state first, then migrated in.
@@ -207,7 +208,7 @@ Started 2026-09-29.
 
 **Pieces:** Docker (primary), Python/uv (the thing inside the image).
 
-**Where we are (2026-09-29):** steps 1–4 done and pushed on `lesson4/docker`: Dockerfile with deps layer before code layer; build + run prints the hello message. Next: step 5, spaCy model decision + real redaction CLI.
+**Where we are (2026-09-29):** steps 1–6 done and pushed on `lesson4/docker`: `en_core_web_lg` added as a locked URL dependency; uv cache mount keeps a 729 MB duplicate out of the image. Next: step 7, the real redaction CLI (Presidio, stdin → redacted stdout).
 
 ### Steps
 
@@ -215,8 +216,10 @@ Started 2026-09-29.
 - [x] 2. First Dockerfile + `.dockerignore` (hello world in a container; CLI logic deferred)
 - [x] 3. Add Presidio deps; rebuild with the naive Dockerfile, note size and time
 - [x] 4. Layer caching: deps layer before code layer
-- [ ] 5. spaCy model + real redaction CLI
-- [ ] 6. Run tests inside the container
+- [x] 5. spaCy model `en_core_web_lg` as a uv URL dependency
+- [x] 6. uv cache mount: keep uv's download cache out of the image
+- [ ] 7. Real redaction CLI (Presidio, stdin → redacted stdout)
+- [ ] 8. Run tests inside the container
 
 ### Decisions and why
 
@@ -230,6 +233,9 @@ Started 2026-09-29.
 - `.dockerignore`: `.venv` (host venv, host paths, would break the image), `.git`, `infra` out of the build context.
 - Presidio (`presidio-analyzer`, `presidio-anonymizer`) added with `uv add`: took the image from ~150 MB to 1.06 GB on disk (238 MB compressed). spaCy, numpy, thinc etc.; the English model is still to come.
 - Layer order: `COPY pyproject.toml uv.lock` → `uv sync --no-install-project` (deps only, ~900 MB, changes only when deps change) → `COPY . .` → `uv sync` (installs just `sanitas`, 0.2s). Least-changing layers first; same pattern as `package.json` before `npm install`.
+- spaCy model `en_core_web_lg` (Presidio's default, ~425 MB) over `sm`/`md`: recall matters more than precision, and Presidio's docs and benchmarks assume `lg`. `sm` vs `lg` gets measured once the scoring harness exists. `trf` rejected: pulls in PyTorch (GBs).
+- Model added as a URL dependency (`en_core_web_lg @ https://github.com/explosion/spacy-models/releases/...-3.8.0-py3-none-any.whl`), not `python -m spacy download` in the Dockerfile: pinned with a hash in `uv.lock`, lands in the cached deps layer, same model on laptop, image and CI. Model 3.8.x must match spaCy 3.8.x; `py3-none-any` = pure data/Python, works on any platform.
+- BuildKit cache mount (`RUN --mount=type=cache,target=/root/.cache/uv`) on both `uv sync` steps: uv's cache lives on the build host, never in a layer. Also makes rebuilds after a lock change download only what's new. `ENV UV_LINK_MODE=copy` because hardlinks can't cross from the mount into the image filesystem. Alternative `UV_NO_CACHE=1` also keeps it out but loses the rebuild speedup. On GitHub runners the mount starts empty each job (fresh VM); handle in lesson 6.
 - `uv.lock` committed: exact versions of every dependency, so the image and CI install the same things the laptop did.
 
 ### Commands run
@@ -244,11 +250,18 @@ uv add presidio-analyzer presidio-anonymizer     # updates pyproject.toml + uv.l
 docker images sanitas                            # 1.06GB disk, 238MB content
 docker history sanitas:dev                       # size per layer
 docker build --progress=plain -t sanitas:dev . 2>&1 | grep -E "CACHED|DONE|RUN|COPY"   # which steps hit cache
+uv add "en_core_web_lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl"
+docker images sanitas                            # 2.76GB disk, 1.05GB content: too big
+docker run --rm sanitas:dev du -sh /root/.cache/uv /app/.venv   # 729M + 729M: uv cache baked into the image
+# add cache mount, rebuild
+docker run --rm sanitas:dev du -sh /root/.cache/uv /app/.venv   # cache: no such file; venv 729M
 ```
 
 ### Gotchas / things I got wrong
 
 - Dockerfile pinned uv `0.12.9` instead of `0.12.19` (typo). Still built, since the build backend (`uv_build`) is fetched separately, but the container's uv should match the one that wrote the lock.
-- `uv run` creates `.venv/` and `uv.lock` on first use. `.venv/` is already gitignored; `uv.lock` gets committed.
+- `uv run` creates `.venv/` and `uv.lock` on first use.
+- Image was 1.8 GB bigger than expected: `uv sync` in a plain `RUN` writes its download cache to `/root/.cache/uv`, which gets saved into the layer. Found by `du` inside the container (`docker run <image> <cmd>` overrides `CMD`).
+- Agent mistake: said `docker images` DISK USAGE = unpacked image. With the containerd image store it's unpacked + compressed content (2.76 GB ≈ 1.7 GB unpacked + 1.05 GB compressed). CONTENT SIZE ≈ what's pushed to ECR; `du` inside the container = unpacked. `.venv/` is already gitignored; `uv.lock` gets committed.
 
 ### Interview talking points
