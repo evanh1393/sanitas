@@ -127,3 +127,35 @@ git switch main && git pull
 - `uses:` runs an action (someone else's repo at a tag); `run:` runs your shell command. Actions run with your token and later your cloud role, so pin them to SHAs: tags can be moved.
 - Runner VM starts empty: `checkout` clones the PR commit, `setup-terraform` puts the CLI on PATH.
 - `ubuntu-24.04-arm` exists: matters for building arm64 (Graviton) Lambda images natively, about 20% cheaper Lambda.
+
+## Week 1, lesson 3: branch protection on `main`
+
+Started 2026-09-29.
+
+**Goal:** nothing reaches `main` except through a PR whose required checks pass.
+
+**Pieces:** GitHub rulesets (the gate), GitHub Actions (the checks).
+
+**Where we are (2026-09-29):** steps 1–2 done; paths filter removed on branch `ci/required-checks` (not yet pushed). Next: commit, push, open PR, then step 3 ruleset.
+
+### Steps
+
+- [x] 1. Make branch protection available (repo made public)
+- [x] 2. Make `checks` run on every PR (paths filter trap; agent made the edit)
+- [ ] 3. Ruleset on `main`: require PR + `checks`
+- [ ] 4. Test it: direct push rejected, red PR blocked
+
+### Decisions and why
+
+- Repo made public instead of paying for GitHub Pro ($4/month): rulesets and branch protection on private repos need Pro on a personal account (API returned 403). It was going public anyway, and public repos get unlimited Actions minutes. History checked first: no secrets (`terraform.tfvars` never committed). Now public: commit author email and AWS account ID (not a secret per AWS).
+- Dropped the workflow's `paths` filter: a required check whose workflow is skipped never reports, so the PR waits on "Expected — waiting for status" forever. Running `checks` on every PR costs ~1 min of free public-repo minutes. The gate-job pattern (one always-on `ci-ok` job) comes when there's a second workflow.
+
+### Q&A from this session (Terraform state)
+
+- `state.tf` only creates the state bucket and KMS key, once, in bootstrap. Every stack needs a `backend "s3"` block with its own `key`; that's what points Terraform at its state.
+- `init` wires up the backend and downloads providers; `apply` writes state. Terraform loads only the `.tf` files in the current folder (not subfolders) = one stack.
+- State = what this stack has applied, with real IDs/ARNs. Not unapplied code, not other stacks.
+- Variables: declared in `variables.tf`, valued in gitignored `terraform.tfvars` (or `-var`, `TF_VAR_*`, `default`), used as `var.x`. Inputs, not AWS resources. CI will use `TF_VAR_*` from secrets.
+- `data` blocks read existing things (never create). Upcoming: `aws_kms_alias` to find the project key, `aws_partition` and `aws_caller_identity` for GovCloud-safe ARNs.
+- Without a remote backend: local state, invisible to CI (fresh VM would try to recreate everything), no locking, lost with the laptop, plaintext on disk.
+- Lint checks never touch the bucket (`init -backend=false`). `plan` in Week 2 will, via OIDC with S3 read and KMS decrypt.

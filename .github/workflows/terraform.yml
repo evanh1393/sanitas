@@ -2,10 +2,6 @@ name: terraform
 
 on:
   pull_request:
-    paths:
-      - "infra/**"
-      - ".github/workflows/terraform.yml"
-      - ".tflint.hcl"
 
 permissions:
   contents: read
