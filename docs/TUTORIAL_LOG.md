@@ -273,3 +273,44 @@ docker run --rm sanitas:test; echo "exit: $?"   # 2 passed, exit: 0
 - Agent mistake: said `docker images` DISK USAGE = unpacked image. With the containerd image store it's unpacked + compressed content (2.76 GB ≈ 1.7 GB unpacked + 1.05 GB compressed). CONTENT SIZE ≈ what's pushed to ECR; `du` inside the container = unpacked. `.venv/` is already gitignored; `uv.lock` gets committed.
 
 ### Interview talking points
+
+## Week 1, lesson 5: GitHub Actions builds the image and runs the tests
+
+Started 2026-09-29.
+
+**Goal:** every PR builds the `test` target and runs pytest inside it, so a PR that breaks the image or the tests can't merge.
+
+**Pieces:** GitHub Actions (primary), Docker (the same `docker build --target test` as on the laptop).
+
+**Where we are (2026-09-29):** step 1 done: `.github/workflows/docker.yml` on `lesson5/ci-docker-tests`, PR #7 green (`docker / test` 28 s, `terraform / checks` 23 s). Step 3 skipped: no layer cache. Step 2 in progress: red/green. Next: step 4, make `test` a required check.
+
+### Steps
+
+- [x] 1. `docker.yml`: build `--target test`, run it, on every PR
+- [ ] 2. Red/green: deliberately failing test turns the PR red
+- [x] 3. Layer cache between runs: skipped (decided from the 28 s measurement)
+- [ ] 4. Add `test` to the `main` ruleset as a required check
+
+### Decisions and why
+
+- Separate workflow file (`docker.yml`) instead of a second job in `terraform.yml`: one concern per file; checks list shows `docker / test` next to `terraform / checks`. The job name `test` is what the ruleset will require.
+- No `paths` filter: a required check that gets skipped leaves the PR stuck (lesson 3).
+- `docker run` exit code = pytest exit code = step result; no extra wiring to fail the job.
+- No layer cache (buildx `type=gha`) for now: the uncached job takes 28 s, and saving/restoring a ~1.7 GB layer likely costs more than it saves. Revisit in week 2 when CI pushes to ECR (a registry cache is an option then).
+
+### Commands run
+
+```bash
+gh pr create --fill
+gh pr checks --watch
+gh run view <run-id> --log | grep -E "DONE|Installed|passed"   # per-step build timings
+```
+
+### Gotchas / things I got wrong
+
+- Agent mistake: predicted the uncached CI build would be slow (~1 GB download every run) and planned a layer cache to fix it. Measured: deps layer `uv sync` 11.1 s (56 packages, incl. the spaCy model), whole job 28 s. Runners have fast networks and uv is quick; a cache that saves/restores a ~1.7 GB layer probably wouldn't pay for itself.
+
+### Interview talking points
+
+- CI runs the same image target as the laptop; tests exercise the layers that ship.
+- Measured before optimizing: uncached build is 28 s, so no layer cache yet.

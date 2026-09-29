@@ -6,4 +6,4 @@ def test_redacts_ssn():
 
 
 def test_keeps_plain_text():
-    assert redact("The report is ready") == "The report is ready."
+    assert redact("The report is ready.") == "The report is ready."
