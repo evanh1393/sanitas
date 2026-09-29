@@ -4,16 +4,16 @@ Working name (candidates: Airlock, Sluice, Kestrel). Pick the real name before t
 
 ## What this is
 
-An open-source, one-command AWS deployment that safely feeds sensitive documents to Claude:
+An open-source, one-command AWS deployment that safely feeds sensitive documents to an LLM:
 
 1. Documents come in (S3).
 2. Personal data is found and removed.
 3. Low-confidence detections go to a human review queue, not straight through.
 4. Clean text is indexed in a vector store.
-5. Claude on Bedrock answers questions with citations.
+5. A model on Bedrock (Claude Haiku 4.5 by default) answers questions with citations.
 6. Every model call is written to an audit log.
 
-All infrastructure is Terraform. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
+All infrastructure is Terraform. The model is a swappable part: the showcase is the CI/CD, testing, and infrastructure around it. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
 
 ## Who does what
 
@@ -31,7 +31,7 @@ Rule: nothing gets merged that Evan can't explain in an interview. Explain what 
 These are the point of the project. Protect them.
 
 1. **Numbers, not claims.** An eval suite measures recall/precision of redaction against labeled data, and whether answers are backed by their citations. CI fails if scores drop.
-2. **Detector comparison.** Presidio, AWS Comprehend, and Claude-as-redactor run against the same labeled set.
+2. **Detector comparison.** Presidio, AWS Comprehend, and LLM-as-redactor (via Bedrock) run against the same labeled set.
 3. **Attack tests.** Hidden prompt injection in documents, and questions that try to extract personal data. These run as tests.
 4. **GovCloud-ready.** ARNs, endpoints, partitions, and model IDs come from variables. Never hardcode `arn:aws:`; use the partition.
 5. **Security details.** No long-lived keys (GitHub Actions uses OIDC). KMS on every bucket. Least-privilege IAM per Lambda: no `*` actions or resources without a written reason. Budget alarm from day one.
@@ -45,7 +45,8 @@ Target: under ~$20/month, close to $0 idle.
 - Serverless only: S3, Lambda, SQS, DynamoDB on-demand, S3 Vectors, Bedrock per token.
 - **Never add without asking:** NAT gateways, OpenSearch clusters, RDS, anything always-on, or more than one KMS key.
 - Private networking (VPC + endpoints) sits behind `enable_private_networking = false`.
-- Bulk load tests use Presidio, not Claude.
+- Bulk load tests use Presidio, not an LLM.
+- CI never calls Bedrock except the eval job. Unit and integration tests use the fake provider.
 
 ## Data and boundaries
 
@@ -58,7 +59,10 @@ Target: under ~$20/month, close to $0 idle.
 
 - Python for the pipeline and eval harness.
 - Terraform for all infrastructure. Commercial AWS region for deploys.
-- Claude via Amazon Bedrock. Check current model availability in commercial and GovCloud before pinning a model ID.
+- Models via Amazon Bedrock's Converse API, behind a `ModelProvider` interface. The model ID is config, never hardcoded. Dev default: Claude Haiku 4.5 (commercial only; not in GovCloud, where the docs name Sonnet 5). Embeddings: Titan Text Embeddings V2.
+- Providers: `BedrockConverseProvider` for real runs, `FakeProvider` (canned responses) for tests.
+- Docker: Lambdas ship as container images in ECR; the same image runs locally and in tests.
+- CI/CD: GitHub Actions only (OIDC to AWS). No Jenkins.
 
 ## Layout (planned; create as needed)
 
