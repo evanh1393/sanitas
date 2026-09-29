@@ -136,19 +136,22 @@ Started 2026-09-29.
 
 **Pieces:** GitHub rulesets (the gate), GitHub Actions (the checks).
 
-**Where we are (2026-09-29):** steps 1–2 done; paths filter removed on branch `ci/required-checks` (not yet pushed). Next: commit, push, open PR, then step 3 ruleset.
+**Where we are (2026-09-29):** steps 1–3 done. PR #3 (`ci/required-checks`, paths filter removed) green, left open. Ruleset `main` (id 24160450) active, verified via API. Next: step 4, test the gate (direct push rejected, then merge PR #3 through it).
 
 ### Steps
 
 - [x] 1. Make branch protection available (repo made public)
 - [x] 2. Make `checks` run on every PR (paths filter trap; agent made the edit)
-- [ ] 3. Ruleset on `main`: require PR + `checks`
+- [x] 3. Ruleset on `main`: require PR + `checks`
 - [ ] 4. Test it: direct push rejected, red PR blocked
 
 ### Decisions and why
 
 - Repo made public instead of paying for GitHub Pro ($4/month): rulesets and branch protection on private repos need Pro on a personal account (API returned 403). It was going public anyway, and public repos get unlimited Actions minutes. History checked first: no secrets (`terraform.tfvars` never committed). Now public: commit author email and AWS account ID (not a secret per AWS).
 - Dropped the workflow's `paths` filter: a required check whose workflow is skipped never reports, so the PR waits on "Expected — waiting for status" forever. Running `checks` on every PR costs ~1 min of free public-repo minutes. The gate-job pattern (one always-on `ci-ok` job) comes when there's a second workflow.
+- Ruleset (Settings → Rules → Rulesets → New branch ruleset), not classic branch protection: rulesets are the newer replacement. Name `main`, Active, empty bypass list (even the admin can't skip it), target `~DEFAULT_BRANCH`. Rules: restrict deletions, block force pushes, require PR (0 approvals: solo dev can't approve own PR), require status check `checks` from GitHub Actions (integration 15368). "Require branches up to date" left off (forces rebase before every merge; not worth it solo).
+- Hole noted: a PR can edit the workflow and keep a job named `checks` that does nothing. Solo, the fix is that only Evan can merge and he reads the diff. With collaborators: CODEOWNERS on `.github/` + required review. Orgs can use required workflows from a locked repo.
+- Later option: manage the ruleset in Terraform (`github_repository_ruleset`) instead of UI clicks.
 
 ### Q&A from this session (Terraform state)
 
