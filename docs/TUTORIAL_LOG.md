@@ -324,3 +324,54 @@ gh api repos/evanh1393/sanitas/rulesets/24160450 --jq '.rules[] | select(.type==
 - CI runs the same image target as the laptop; tests exercise the layers that ship.
 - Measured before optimizing: uncached build is 28 s, so no layer cache yet.
 - Proved the gate, not just the check: a red required check moves the PR from `UNSTABLE` (mergeable) to `BLOCKED`.
+
+## Week 1, lesson 6: lint with ruff
+
+Started 2026-09-29.
+
+**Goal:** every PR fails if the Python code has lint errors or isn't formatted, using the same pinned ruff on the laptop and in CI.
+
+**Pieces:** GitHub Actions (two new steps in the `test` job), Docker (ruff runs inside the `test` image; `.dockerignore` hardened), Python/uv (ruff as a dev dependency).
+
+**Where we are (2026-09-29):** all steps done on PR #8 (`lesson6/ruff`). Red/green verified: unused import → `ruff check` failed (F401 + I001), `ruff format` skipped, PR `BLOCKED`; import removed → green (`test` 30 s). **Lesson 6 complete once PR #8 merges.** Next: pick from PLAN.md Week 1 (`ModelProvider` interface + `FakeProvider`, data + `DATA.md`, or the scoring harness).
+
+### Steps
+
+- [x] 1. `uv add --dev ruff`; `ruff check` + `ruff format --check` locally (clean)
+- [x] 2. Two steps in `docker.yml`: `docker run --rm sanitas:test ruff check .` and `ruff format --check .`
+- [x] 3. Red/green: unused import turns the PR red and `BLOCKED`
+
+### Decisions and why
+
+- Ruff runs inside the test image, not on the runner: the `test` target already installs the dev group, so ruff comes at the `uv.lock` version with no extra setup. Same reasoning as running pytest in the image (lesson 4). Rejected: separate `lint` job with `setup-uv` (faster feedback by ~20 s, but a second toolchain and another required check).
+- Steps inside the existing `test` job, not a new job: already a required check, so no ruleset change. Cost: a test failure stops the job before lint runs.
+- Two steps (`check`, `format`) instead of one: the log shows which one failed.
+- Default ruff rules, no `[tool.ruff]` config yet. Ruff 0.16's defaults include import sorting (`I001`).
+- `.dockerignore` now mirrors the private/local parts of `.gitignore`: `.env`, `.env.*`, `CLAUDE.local.md`, `.claude`, `.ruff_cache`, `data`. Build context dropped from 302 kB to under 1 kB.
+
+### Commands run
+
+```bash
+uv add --dev ruff                                  # ruff 0.16.9 in the dev group
+uv run ruff check .                                # lint
+uv run ruff format --check .                       # formatting, no changes written
+docker run --rm sanitas:test ruff check .          # same, inside the image (overrides CMD)
+docker run --rm sanitas:test ls -a /app            # what COPY . . actually put in the image
+gh run view <run-id> --json jobs --jq '.jobs[0].steps[]|"\(.name): \(.conclusion)"'   # per-step result
+uv run ruff check --fix .                          # auto-fix rules marked [*]
+```
+
+### Gotchas / things I got wrong
+
+- PR #7 wasn't actually merged before starting; `lesson6/ruff` was cut from the old `main` (no `docker.yml`). Fixed with `git stash` → merge → pull → recreate branch → `git stash pop`. Check `gh pr view <n> --json state` before branching.
+- Squash commit for PR #7 got the branch name as its title. Use `gh pr create --title`.
+- `.gitignore` doesn't apply to `docker build`. `COPY . .` had put the gitignored `CLAUDE.local.md` into local images (CI unaffected: the checkout has no gitignored files). Found because ruff counted 10 files in the container vs 9 on the laptop: with no `.git` in the image, ruff doesn't apply `.gitignore`.
+- Adding a dev-only dependency changes `uv.lock`, which invalidates the deps layer (`COPY pyproject.toml uv.lock`) and re-exports the 1.7 GB layer (~14 s locally).
+- `docker.yml` and `.dockerignore` lack a final newline.
+- Agent mistake: said ruff's defaults were minimal and import sorting (`I`) could be added later. Ruff 0.16 already flags `I001` by default; the red/green run showed 2 errors, not the expected 1.
+
+### Interview talking points
+
+- Lint and tests run in the same image, so the ruff version is pinned by the lock file; no "works on my machine" linter drift.
+- `.dockerignore` is a security control: the build context is everything not excluded, regardless of `.gitignore`. Verified by listing `/app` in the image.
+- An unused import passes the tests but fails lint: why both gates exist.

@@ -22,7 +22,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - [ ] Scoring harness against ai4privacy (recall, precision).
 - [ ] Decision record: why Python, why Presidio first.
 - CI/CD:
-  - [ ] First workflow: lint + unit tests (fake provider) on every PR. (Unit tests run in `docker / test` since PR #7; lint and the fake provider still to do.)
+  - [ ] First workflow: lint + unit tests (fake provider) on every PR. (Unit tests run in `docker / test` since PR #7; ruff lint + format since PR #8. Fake provider still to do.)
   - [x] Build the Docker image in CI and run the tests inside it. (Done 2026-09-29: PR #7 `docker.yml`, job `test` required in the `main` ruleset. No layer cache: uncached run is 28 s.)
   - [x] Terraform checks in CI: `fmt -check`, `validate`, `tflint`. (Done 2026-09-29: PR #1 fmt + validate, PR #2 tflint with the AWS ruleset.)
   - [x] Branch protection on `main`: PRs only, required checks must pass. (Done 2026-09-29: repo made public for free rulesets; ruleset `main` requires a PR and `checks`, no bypass. PR #3 dropped the workflow's `paths` filter.)
