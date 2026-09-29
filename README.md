@@ -23,3 +23,7 @@ TBD: a plain-language explanation of what this system does with sensitive docume
 ## Running it
 
 TBD
+
+## License
+
+MIT. See [LICENSE](LICENSE).
