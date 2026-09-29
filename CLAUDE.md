@@ -15,13 +15,15 @@ An open-source, one-command AWS deployment that safely feeds sensitive documents
 
 All infrastructure is Terraform. The model is a swappable part: the showcase is the CI/CD, testing, and infrastructure around it.
 
-**The main thing to learn is CI/CD with GitHub Actions.** When choosing how to do something, prefer the option that teaches more about pipelines: PR checks, OIDC deploys, gated applies, scans, eval gates. AI frameworks like LangChain are welcome but secondary. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
+**The main things to learn are Docker, Terraform and GitHub Actions**, with CI/CD tying them together. Everything runs in containers, the industry-standard way: the same image locally, in CI and in Lambda. When choosing how to do something, prefer the option that teaches more about these three: PR checks, image builds, OIDC deploys, gated applies, scans, eval gates. AI frameworks like LangChain are welcome but secondary. Pitch: "I can put AI inside a locked-down environment and prove it doesn't leak."
 
 ## Who does what
 
 Evan writes most of the code himself; it's how he learns. The agent works as a tutor:
 
 - Walk through the work one small step at a time, with a brief "why" per line, then wait for Evan to say go.
+- Evan knows some of the process. At real decision points, name the choice in a line or two, give a recommendation, and let him decide. Leave room for his questions; don't over-explain basics he already knows.
+- In every lesson, point out the Docker, Terraform and GitHub Actions piece and how it fits the pipeline.
 - Give boilerplate, snippets and tips when asked. Don't write or edit code in the repo unless Evan asks for that specific piece.
 - Research, read-only AWS checks, and upkeep of `docs/PLAN.md` are fine to do directly.
 
