@@ -384,13 +384,13 @@ Started 2026-09-29.
 
 **Pieces:** Python/uv (sampling script), Docker (sample must be inside the build context), GitHub Actions (later: harness scores this file on every PR).
 
-**Where we are (2026-09-29):** steps 1–2 done on `lesson7/data` (uncommitted): `eval/data/ai4privacy-en-200.jsonl`, 200 English records, 1,696 labeled spans; `DATA.md` has license + attribution (agent-written at Evan's request). Next: step 3, commit, PR, merge.
+**Where we are (2026-09-29):** all steps done on PR #9 (`lesson7/data`): `eval/data/ai4privacy-en-200.jsonl` (200 English records, 1,696 labeled spans), `DATA.md` license + attribution. Ruff caught the sampling script locally before push (FURB122 + format); `checks` 20 s, `test` 31 s, both green. **Lesson 7 complete once PR #9 merges.** Next: lesson 8, scoring harness (recall/precision of `redact()` against the sample; first decision: map ai4privacy labels to Presidio entities, and span-overlap vs exact-match scoring).
 
 ### Steps
 
 - [x] 1. Sampling script → `eval/data/ai4privacy-en-200.jsonl`
 - [x] 2. `DATA.md`: source, license, attribution, how to regenerate
-- [ ] 3. Commit, PR, merge
+- [x] 3. Commit, PR, merge
 
 ### Decisions and why
 
@@ -410,6 +410,11 @@ wc -l eval/data/ai4privacy-en-200.jsonl         # 200
 ### Gotchas / things I got wrong
 
 - "Import could not be resolved" in the editor: `--with` deps live in a temporary env, not `.venv`. Harmless.
+- Agent mistake: the sampling script as given failed ruff (FURB122 `f.write` in a loop; line over 88 chars). Caught by running `ruff check` + `ruff format --check` locally before pushing. VS Code now formats Python with ruff on save.
 - Data is synthetic and mostly non-US formats (Canadian postal codes, 10-digit "social" numbers, `+7689036 9349` phones). Presidio's US recognizers (`US_SSN`) won't match many of these: expect low recall on some labels for format reasons, not model reasons.
 
 ### Interview talking points
+
+- CC-BY-4.0 allows redistribution with attribution: creator, source link, license link, and a note of changes. Committing a sample is redistribution, so `DATA.md` carries all four.
+- A small committed sample makes the eval hermetic: CI scores it with no network, no credentials, and no upstream drift. Seeded sampling script = provenance.
+- Run the CI gate locally first (`ruff check`, `ruff format --check`): seconds instead of a CI round-trip.

@@ -15,7 +15,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 
 - [ ] README skeleton. (License done: MIT.)
 - [x] AWS account: MFA, budget alarm, Terraform state backend. (Done 2026-09-29. MFA was already on the IAM user that assumes into the account.)
-- [ ] Get the data; write `DATA.md` with each license.
+- [x] Get the data; write `DATA.md` with each license. (Done 2026-09-29: 200-record English sample of ai4privacy `openpii-masking-mini-10k`, CC-BY-4.0, in `eval/data/`. Enron, CFPB and Faker rows still TBD until used.)
 - [ ] `ModelProvider` interface: `BedrockConverseProvider` (real) and `FakeProvider` (tests). Model ID from config.
 - [x] Local redaction CLI using Presidio.
 - [x] Dockerfile for the redaction code; tests run inside the container.
