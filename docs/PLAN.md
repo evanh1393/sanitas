@@ -6,7 +6,7 @@ Four weeks, about 2 hours a day. Each week ends with a demo.
 
 - [ ] Check which Claude models Bedrock offers in commercial AWS and GovCloud; pin one. (Chosen: Claude Haiku 4.5 for dev. Confirm the exact inference-profile ID with `aws bedrock list-inference-profiles`, then tick.)
 - [x] Check S3 Vectors and Comprehend PII detection availability in the target regions. (S3 Vectors: GA, us-east-1/us-west-2 and both GovCloud regions. Comprehend PII: us-east-1/us-west-2 and us-gov-west-1 only.)
-- [ ] Pick the real name (check GitHub and PyPI). Create the public repo.
+- [x] Pick the real name (check GitHub and PyPI). Create the public repo. (Sanitas. Repo `evanh1393/sanitas` exists, still private until the employment-agreement check.)
 - [ ] Check outside-work and IP terms in the employment agreement before going public.
 - [ ] Choose a license.
 

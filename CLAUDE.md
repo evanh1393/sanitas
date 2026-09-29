@@ -1,6 +1,6 @@
-# Kestrel
+# Sanitas
 
-Working name (candidates: Airlock, Sluice, Kestrel). Pick the real name before the repo goes public.
+Latin for "soundness", the root of "sanitize". Chosen 2026-09-28 after Airlock, Sluice and Kestrel were taken on PyPI.
 
 ## What this is
 

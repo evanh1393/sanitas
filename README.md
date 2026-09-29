@@ -1,4 +1,4 @@
-# Kestrel
+# Sanitas
 
 A one-command AWS deployment that removes personal data from documents before they reach Claude, routes doubtful cases to a human, and answers questions with citations and a full audit log. All infrastructure is Terraform.
 
