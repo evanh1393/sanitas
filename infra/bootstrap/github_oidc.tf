@@ -22,8 +22,8 @@ data "aws_iam_policy_document" "github_trust" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:evanh1393/sanitas:pull_request",
-        "repo:evanh1393/sanitas:ref:refs/heads/main",
+        "repo:evanh1393@56936902/sanitas@1394147480:pull_request",
+        "repo:evanh1393@56936902/sanitas@1394147480:ref:refs/heads/main",
       ]
     }
   }
