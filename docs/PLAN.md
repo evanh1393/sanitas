@@ -34,7 +34,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - [ ] Lambdas as container images in ECR (lifecycle policy to keep storage near $0).
 - [ ] Add Comprehend and LLM-as-redactor (via the provider) to the harness. Write the comparison.
 - CI/CD:
-  - [ ] GitHub OIDC provider and deploy role in Terraform (no stored AWS keys).
+  - [x] GitHub OIDC provider and deploy role in Terraform (no stored AWS keys).
   - [ ] Build and push images to ECR from Actions via OIDC.
   - [ ] `terraform plan` on every PR, posted as a PR comment.
   - [ ] `terraform apply` from Actions on merge, behind a GitHub environment that needs Evan's approval.

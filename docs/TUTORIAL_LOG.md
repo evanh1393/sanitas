@@ -465,3 +465,55 @@ docker run --rm sanitas:test python eval/score.py        # same numbers in the i
 - Eval gate = a test that fails the build on a metric, not on a bug. Same exit-code chain as pytest and ruff.
 - Same image, same lock file, same data → identical numbers on laptop and CI; no tolerance for noise needed.
 - Scope note (Evan, 2026-09-29): the app is a "jazzier hello world" with a Bedrock hook; the project is about CI/CD and DevOps.
+
+## Week 2, lesson 9: GitHub OIDC → AWS (no stored keys)
+
+Started 2026-09-29.
+
+**Goal:** GitHub Actions gets short-lived AWS credentials for one role, only for runs from `evanh1393/sanitas`, with no access keys stored anywhere. Unlocks ECR push, `plan` on PRs, and gated `apply`.
+
+**Pieces:** Terraform (provider + role, in `infra/bootstrap/`), GitHub Actions (`id-token: write` + `configure-aws-credentials`), Docker (later: this role pushes images to ECR).
+
+**Where we are (2026-09-30):** step 4 green on PR (`aws/whoami` printed `assumed-role/sanitas-github-actions/GitHubActions`). Next: commit the `sub` fix, push, merge. Then lesson 10: ECR push via OIDC.
+
+### Steps
+
+- [x] 1. `aws_iam_openid_connect_provider` for `token.actions.githubusercontent.com`
+- [x] 2. IAM role with trust policy (repo + branch/environment conditions)
+- [x] 3. Evan applies provider + role together from the laptop
+- [x] 4. Workflow step assumes the role; `aws sts get-caller-identity` in CI
+
+### Decisions and why
+
+- Lives in `infra/bootstrap/`: same chicken-and-egg as the state bucket; CI can't create the login it uses, so it's applied once by hand.
+- No `thumbprint_list`: AWS validates GitHub's cert itself; optional in provider v6. Older tutorials hardcode a thumbprint that went stale.
+- Immutable `sub` (`repo:evanh1393@56936902/sanitas@1394147480:...`): the repo sends owner/repo IDs, not just names. IDs survive renames and stop a recreated same-name repo from passing the trust policy.
+- `AWS_ROLE_ARN` / `AWS_REGION` are repo *variables*, not secrets: an ARN isn't sensitive, the trust policy is the gate.
+- Role has no permissions policy yet: `get-caller-identity` needs none. Permissions get added per job as they're needed.
+- `client_id_list = ["sts.amazonaws.com"]`: the audience `configure-aws-credentials` requests; tokens for other audiences are rejected.
+
+### Commands run
+
+```bash
+aws login --profile default          # AWS_PROFILE=tf is set in the shell; tf -> credential_process -> default
+aws configure set region us-east-1 --profile tf
+aws iam list-open-id-connect-providers --profile sanitas   # empty
+git switch -c lesson9/github-oidc
+```
+
+### Gotchas / things I got wrong
+
+- Agent mistake: told Evan to `aws login --profile sanitas`, then `--profile tf`. Profile chain is `sanitas` (assume role) → `tf` (`credential_process`) → `default` (the actual `aws login` session). Only `default` can log in.
+- `AWS_PROFILE=tf` in the shell makes a bare `aws login` target `tf`; use `--profile default`.
+- `aws login` via Claude Code's `!` prompt failed on the region question (no TTY); setting the region on the profile first avoided the prompt.
+- Console equivalent: IAM → Identity providers → Add provider → OpenID Connect. Don't click-create it: Terraform's apply would then fail on the duplicate.
+- Agent mistake: gave the old name-only `sub` format (`repo:evanh1393/sanitas:pull_request`). This repo uses the immutable subject, so AssumeRoleWithWebIdentity was denied 12 times. Found with `gh api repos/{owner}/{repo}/actions/oidc/customization/sub`.
+- "Not authorized to perform sts:AssumeRoleWithWebIdentity" = `sub` or `aud` mismatch almost every time. Compare the policy to the real claim format.
+- `gh run rerun --failed <id>` retries after an AWS-side fix; no new commit needed.
+
+### Interview talking points
+
+- OIDC = authentication (who is calling); the role's policy = authorization (what it may do); tflint/checkov = is the code sensible. Three separate controls.
+- A role is something you become, not a login. OIDC replaces a long-lived access key in GitHub Secrets with a per-run token that expires in minutes.
+- Why CI deploys at all: reviewed, recorded, repeatable changes; bootstrap stays manual because it creates what the pipeline stands on.
+- Log shows `AWS_ACCESS_KEY_ID: ***`: temporary keys exist for the run only, masked, and expire. Nothing stored in GitHub.

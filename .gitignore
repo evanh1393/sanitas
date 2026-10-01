@@ -25,3 +25,4 @@ build/
 
 # Downloaded datasets (see DATA.md)
 data/raw/
+tfplan
