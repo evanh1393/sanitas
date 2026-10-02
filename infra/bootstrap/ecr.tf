@@ -48,3 +48,9 @@ data "aws_iam_policy_document" "ecr_push" {
     resources = [aws_ecr_repository.sanitas.arn]
   }
 }
+
+resource "aws_iam_role_policy" "github_ecr_push" {
+  name   = "ecr-push"
+  role   = aws_iam_role.github_actions.id
+  policy = data.aws_iam_policy_document.ecr_push.json
+}
