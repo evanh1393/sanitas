@@ -474,7 +474,7 @@ Started 2026-09-29.
 
 **Pieces:** Terraform (provider + role, in `infra/bootstrap/`), GitHub Actions (`id-token: write` + `configure-aws-credentials`), Docker (later: this role pushes images to ECR).
 
-**Where we are (2026-09-30):** step 4 green on PR (`aws/whoami` printed `assumed-role/sanitas-github-actions/GitHubActions`). Next: commit the `sub` fix, push, merge. Then lesson 10: ECR push via OIDC.
+**Where we are (2026-10-02):** done, merged as PR #11. Next: lesson 10, ECR push via OIDC.
 
 ### Steps
 
@@ -517,3 +517,44 @@ git switch -c lesson9/github-oidc
 - A role is something you become, not a login. OIDC replaces a long-lived access key in GitHub Secrets with a per-run token that expires in minutes.
 - Why CI deploys at all: reviewed, recorded, repeatable changes; bootstrap stays manual because it creates what the pipeline stands on.
 - Log shows `AWS_ACCESS_KEY_ID: ***`: temporary keys exist for the run only, masked, and expire. Nothing stored in GitHub.
+
+## Week 2, lesson 10: build and push to ECR via OIDC
+
+Started 2026-10-02.
+
+**Goal:** on merge to `main`, Actions builds the `runtime` image and pushes it to a private ECR repo, tagged with the commit SHA, using the lesson 9 OIDC role. No stored keys.
+
+**Pieces:** Terraform (ECR repo, lifecycle policy, push policy on the role, in `infra/bootstrap/ecr.tf`), GitHub Actions (`amazon-ecr-login`, build + push job), Docker (`runtime` stage becomes the image Lambda will run).
+
+**Where we are (2026-10-02):** steps 1-4 done; repo applied and verified (IMMUTABLE, KMS, scanOnPush). Next: step 5, the push workflow.
+
+### Steps
+
+- [x] 1. `aws_ecr_repository`: immutable tags, existing KMS key, scan on push
+- [x] 2. `aws_ecr_lifecycle_policy`: keep the last 10 images
+- [x] 3. Inline role policy: `GetAuthorizationToken` on `*`, push actions on the repo ARN only
+- [x] 4. Evan applies (`plan -out=tfplan`, `apply tfplan`)
+- [ ] 5. Workflow: OIDC → `amazon-ecr-login` → build `runtime` → push `:<sha>` on push to `main`
+- [ ] 6. Merge, watch the run, see the image in ECR
+
+### Decisions and why
+
+- ECR repo lives in `infra/bootstrap/`: next to the role that pushes to it, so the policy references the ARN directly; CI can't apply stacks yet.
+- `IMMUTABLE` tags: one SHA = one image forever; nobody can swap what a tag points to.
+- Reuse the one KMS key (`aws_kms_key.sanitas`): $1/month per key; ECR creates its own grant, so pushers need no KMS permissions.
+- No `force_delete`: `destroy` fails while images exist. Free guard against accidental deletion.
+- Lifecycle keeps 10 images (`tagStatus = any`): storage near $0, room to roll back.
+- `GetAuthorizationToken` needs `"*"` (registry-wide, no resource-level support); written reason in a comment. Push actions scoped to the repo ARN.
+- Known tradeoff: the trust policy also admits `pull_request` runs, so a PR run could push. Workflow only pushes on `main`; a separate main-only role can come with the gated deploy.
+- Added `terrashark` skill as a Terraform review checklist (line in `CLAUDE.md`).
+
+### Concepts Evan worked through
+
+- Role policy (`aws_iam_role_policy`) = what the role may do; repo policy (`aws_ecr_repository_policy`) = who may touch the repo. We used the former.
+- Token = authentication (`docker login`); per-call IAM check = authorization. Same split as OIDC.
+- Build happens on the runner (the GitHub-hosted VM from `runs-on`); needs no AWS permissions. ECR only stores. AWS only enters at push.
+
+### Interview talking points
+
+- "CI can build anything, but it can only publish to one repo."
+- Changing `name` or `encryption_configuration` on an ECR repo forces replacement, which deletes the images. Get them right on the first apply.

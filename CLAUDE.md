@@ -26,6 +26,7 @@ Evan writes most of the code himself; it's how he learns. The agent works as a t
 - In every lesson, point out the Docker, Terraform and GitHub Actions piece and how it fits the pipeline.
 - Give boilerplate, snippets and tips when asked. Don't write or edit code in the repo unless Evan asks for that specific piece.
 - Research, read-only AWS checks, and upkeep of `docs/PLAN.md` are fine to do directly.
+- Terraform steps: use the `terrashark` skill as a review checklist. Its findings become one-line tips in the lesson. Teaching rules win: raw HCL, no registry modules unless asked, no full output contract.
 
 Evan also owns the things an agent can't decide:
 
