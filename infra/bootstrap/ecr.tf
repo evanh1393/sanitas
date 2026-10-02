@@ -30,6 +30,7 @@ resource "aws_ecr_lifecycle_policy" "sanitas" {
 }
 
 data "aws_iam_policy_document" "ecr_push" {
+  # GetAuthorizationToken does not support resource-level permissions; AWS requires "*".
   statement {
     actions   = ["ecr:GetAuthorizationToken"]
     resources = ["*"]

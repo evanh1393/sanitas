@@ -526,7 +526,7 @@ Started 2026-10-02.
 
 **Pieces:** Terraform (ECR repo, lifecycle policy, push policy on the role, in `infra/bootstrap/ecr.tf`), GitHub Actions (`amazon-ecr-login`, build + push job), Docker (`runtime` stage becomes the image Lambda will run).
 
-**Where we are (2026-10-02):** steps 1-4 done; repo applied and verified (IMMUTABLE, KMS, scanOnPush). Next: step 5, the push workflow.
+**Where we are (2026-10-02):** done, merged as PR #12. `push` run on `main` pushed `sanitas:899e3f0…` (~560 MB) to ECR. Next: pick the next Week 2 item (`terraform plan` on PRs, or the redaction Lambda).
 
 ### Steps
 
@@ -534,8 +534,8 @@ Started 2026-10-02.
 - [x] 2. `aws_ecr_lifecycle_policy`: keep the last 10 images
 - [x] 3. Inline role policy: `GetAuthorizationToken` on `*`, push actions on the repo ARN only
 - [x] 4. Evan applies (`plan -out=tfplan`, `apply tfplan`)
-- [ ] 5. Workflow: OIDC → `amazon-ecr-login` → build `runtime` → push `:<sha>` on push to `main`
-- [ ] 6. Merge, watch the run, see the image in ECR
+- [x] 5. Workflow: OIDC → `amazon-ecr-login` → build `runtime` → push `:<sha>` on push to `main`
+- [x] 6. Merge, watch the run, see the image in ECR
 
 ### Decisions and why
 
@@ -547,6 +547,7 @@ Started 2026-10-02.
 - `GetAuthorizationToken` needs `"*"` (registry-wide, no resource-level support); written reason in a comment. Push actions scoped to the repo ARN.
 - Known tradeoff: the trust policy also admits `pull_request` runs, so a PR run could push. Workflow only pushes on `main`; a separate main-only role can come with the gated deploy.
 - Added `terrashark` skill as a Terraform review checklist (line in `CLAUDE.md`).
+- `AWS_ROLE_ARN` stays a hand-set repo variable (Settings → Secrets and variables → Actions → Variables), not a Terraform output. Evan's call: one repo, one role, the trust policy is the gate. Known cost: renaming or recreating the role means updating the variable by hand.
 
 ### Concepts Evan worked through
 
@@ -554,7 +555,15 @@ Started 2026-10-02.
 - Token = authentication (`docker login`); per-call IAM check = authorization. Same split as OIDC.
 - Build happens on the runner (the GitHub-hosted VM from `runs-on`); needs no AWS permissions. ECR only stores. AWS only enters at push.
 
+### Gotchas / things I got wrong
+
+- Evan's `ecr.tf` had the `aws_iam_policy_document` but not the `aws_iam_role_policy` that attaches it. Plan said 2 to add, not 3; nobody checked the count. tflint (`terraform_unused_declarations`) failed `checks` on the PR before any deploy.
+- Agent mistake: asked for "3 to add" but never confirmed the number, and didn't run `aws iam list-role-policies` after apply. Now: verify with a read-only check after every apply.
+- `git add` with repo-root paths fails from `infra/bootstrap/`; `cd` to root or use `git add -A`.
+- `push.yml` only triggers on `main`, so it never shows in PR checks; `gh run watch` after merge.
+
 ### Interview talking points
 
+- A `data` block only describes; only `resource` blocks change infrastructure. A policy document with no attachment does nothing, and a linter can catch it.
 - "CI can build anything, but it can only publish to one repo."
 - Changing `name` or `encryption_configuration` on an ECR repo forces replacement, which deletes the images. Get them right on the first apply.

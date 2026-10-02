@@ -35,7 +35,7 @@ CI/CD with GitHub Actions is the main thing to learn, so it grows every week ins
 - [ ] Add Comprehend and LLM-as-redactor (via the provider) to the harness. Write the comparison.
 - CI/CD:
   - [x] GitHub OIDC provider and deploy role in Terraform (no stored AWS keys).
-  - [ ] Build and push images to ECR from Actions via OIDC.
+  - [x] Build and push images to ECR from Actions via OIDC. (Done 2026-10-02: PR #12, `push.yml` on merge to `main`, tag = commit SHA.)
   - [ ] `terraform plan` on every PR, posted as a PR comment.
   - [ ] `terraform apply` from Actions on merge, behind a GitHub environment that needs Evan's approval.
   - [ ] Security scans in CI: `checkov` (or `trivy config`) on Terraform, `trivy` on images.
